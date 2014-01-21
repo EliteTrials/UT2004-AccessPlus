@@ -2,7 +2,7 @@
 // AccessPlus_Admin.uc Created @ 2006
 // Coded by 'Marco' and 'Eliot van uytfanghe'
 //==============================================================================
-Class AccessPlus_Admin Extends Admin;
+class AccessPlus_Admin extends Admin;
 
 var AccessPlus_Control uManager;
 var bool bWasSilentLogin;
@@ -210,7 +210,7 @@ exec function Help( string S )
 		HelpMessage( "Global-Admin - Commands" );
 		HelpMessage( "GetGlobalAdminPassword :: SetGlobalAdminPassword" );
 		HelpMessage( "CreateAdminAccount :: DeleteAdminAccount" );
-		HelpMessage( "NameAdminAccount :: PrivelagesAdminAccount :: PasswordAdminAccount" );
+		HelpMessage( "NameAdminAccount :: PrivilagesAdminAccount :: PasswordAdminAccount" );
 		HelpMessage( "-----------" );
 		HelpMessage( "Co-Admin - Commands" );
 		HelpMessage( "Fly :: Ghost :: Walk :: Spider :: Slap :: Fatality :: Rename :: Invis :: God :: HeadSize :: PlayerSize" );
@@ -257,8 +257,8 @@ exec function Help( string S )
 			CmdHelpMessage( "Alternative Command", "SetACPass" );
 			break;
 
-		case "PrivelagesAdminAccount":
-			CmdHelpMessage( "** "$S, "<int AdminSlot> <string AdminPrivelagest> - Changes an admin account's privelages" );
+		case "PrivilegesAdminAccount":
+			CmdHelpMessage( "** "$S, "<int AdminSlot> <string Privileges> - Changes an admin account's privileges" );
 			CmdHelpMessage( "** "$S, "<int AdminSlot> <All> - To block all admin commands for this admin account" );
 			CmdHelpMessage( "Alternative Command", "SetACPriv" );
 			break;
@@ -271,57 +271,57 @@ exec function Help( string S )
 		// Gameplay affecting commands										  \\
 		case "Fly":
 			CmdHelpMessage( S, "|string PlayerID| - Target player will feel lighter" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "Ghost":
 			CmdHelpMessage( S, "|string PlayerID| - Target player will feel etheareal" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "Spider":
 			CmdHelpMessage( S, "|string PlayerID| - Target player fingers will feel sticky" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "Slap":
 			CmdHelpMessage( S, "|string PlayerID| |int SlapDamage| - Slap target player" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "Rename":
 			CmdHelpMessage( S, "|string PlayerID| <string Name> - Changes target player name" );
-			CmdHelpMessage( S, "|Self| <Newbie> - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| <Newbie> - Will automatically target you" );
 			break;
 
 		case "God":
 			CmdHelpMessage( S, "|string PlayerID| |bool bGodMode| - Make target player invurnable" );
-			CmdHelpMessage( S, "|Self| |True| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| |True| - Will automatically target you" );
 			break;
 
 		case "HeadSize":
 			CmdHelpMessage( S, "|string PlayerID| <float Size> - Changes target player head size" );
-			CmdHelpMessage( S, "|Self| <0.25> - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| <0.25> - Will automatically target you" );
 			break;
 
 		case "PlayerSize":
 			CmdHelpMessage( S, "|string PlayerID| <float Size> - Changes target player body size" );
-			CmdHelpMessage( S, "|Self| <2.0> - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| <2.0> - Will automatically target you" );
 			break;
 
 		case "Invis":
 			CmdHelpMessage( S, "|string PlayerID| - Make target player invisible" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "Fatality":
 			CmdHelpMessage( S, "|string PlayerID| - Make target player blow up" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "ChangeScore":
 			CmdHelpMessage( S, "|string PlayerID| <int Score> - Changes target player score" );
-			CmdHelpMessage( S, "|Self| <1337> - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| <1337> - Will automatically target you" );
 			break;
 
 		case "SetGameSpeed":
@@ -335,54 +335,54 @@ exec function Help( string S )
 			break;
 
 		case "Summon":
-			CmdHelpMessage( S, "<string Class> <string Properties> - Summon's an actor of type <Class>" );
+			CmdHelpMessage( S, "<string Class> <string Properties> - Spawns an actor of type <Class>" );
 			CmdHelpMessage( "Example", S@"<RedeemerProjectile> <DrawScale=2/Damage=15>" );
 			break;
 
 		case "RemotePlayerCommand":
 			CmdHelpMessage( S, "|string PlayerID| <string Command> - Make target player execute <Command>" );
-			CmdHelpMessage( S, "|Self| <Say I'm admin yeah!> - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| <Say I'm admin yeah!> - Will automatically target you" );
 			CmdHelpMessage( "Example", S@"<Michael Jackson> <Say Just beat it!>" );
 			break;
 
 		case "TeleP":
 			CmdHelpMessage( S, "|string PlayerID| - Teleport target player to you" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "GotoP":
 			CmdHelpMessage( S, "|string PlayerID| - Teleport to target player" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "GotoA":
 			CmdHelpMessage( S, "|string PlayerID| <name ActorTag> |vector Offset| - Teleport target player to <class ActorToTeleportTo>" );
-			CmdHelpMessage( S, "|Self| <Mover1> - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| <Mover1> - Will automatically target you" );
 			break;
 
 		case "Loaded":
 			CmdHelpMessage( S, "|string PlayerID| |bool bSuperWeapons| - Give target player all weapons and full ammo" );
-			CmdHelpMessage( S, "|Self| |True| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| |True| - Will automatically target you" );
 			break;
 
 		case "AllAmmo":
 			CmdHelpMessage( S, "|string PlayerID| - Make target player weapons full loaded" );
-			CmdHelpMessage( S, "|Self| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| - Will automatically target you" );
 			break;
 
 		case "AllWeapons":
 			CmdHelpMessage( S, "|string PlayerID| |bool bSuperWeapons| - Give target player all weapons" );
-			CmdHelpMessage( S, "|Self| |True| - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| |True| - Will automatically target you" );
 			break;
 
 		case "GiveItem":
-			CmdHelpMessage( S, "|string PlayerID| <class Item> - Give target player a item" );
-			CmdHelpMessage( S, "|Self| <xWeapons.RocketLauncher> - Will automaticly target you" );
+			CmdHelpMessage( S, "|string PlayerID| <class Item> - Give target player an item" );
+			CmdHelpMessage( S, "|Self| <xWeapons.RocketLauncher> - Will automatically target you" );
 			break;
 
 		case "SetMonster":
 			CmdHelpMessage( S, "|string PlayerID| <byte MovementType> <class Monster> - Turn target player into an monster" );
-			CmdHelpMessage( S, "|Self| <0> <Skaarjpack.Warlord> - Will automaticly target you" );
+			CmdHelpMessage( S, "|Self| <0> <Skaarjpack.Warlord> - Will automatically target you" );
 			CmdHelpMessage( "<byte MovementType>", "0 = WalkMode, 1 = FlyMode, 2 = SpiderMode" );
 			break;
 
@@ -489,7 +489,7 @@ exec function Help( string S )
 			break;
 
 		case "MapVote":
-			CmdHelpMessage( S, "<string Action> - Execute a action in VotingHandler" );
+			CmdHelpMessage( S, "<string Action> - Execute an action in VotingHandler" );
 			CmdHelpMessage( "<string Action>", "Cancel = Cancel the current map votes, Begin = Force mid-game map voting" );
 			break;
 
@@ -509,7 +509,7 @@ exec function Help( string S )
 			break;
 
 		case "Set":
-			CmdHelpMessage( S, "<string Class> <string Property> <string Value> - Change an actors property value" );
+			CmdHelpMessage( S, "<string Class> <string Property> <string Value> - Change an actor's property value" );
 			CmdHelpMessage( "Example", S@"<Engine.Pawn> <JumpZ> <1024>" );
 			break;
 
@@ -1110,8 +1110,7 @@ exec function SetTime( float TimeLimit )
 // This works aswell for decrementing the time
 exec function AddTime( float TimeLimit )
 {
-	local ASGameReplicationInfo G;
-	local bool bFoundIt;
+	local ASGameReplicationInfo GRI;
 
 	if( !CanDo("AddTime") ) Return;
 	TimeLimit *= 60;
@@ -1811,7 +1810,7 @@ exec function ListTempBans()
 		Return;
 	}
 	for( i=0; i<j; i++ )
-		ClientMessage("TempBan slot"@i$":"@uManager.TempBannedPlayers[i].BannedPLName$","@(uManager.TempBannedPlayers[i].BannedDays-uManager.GetDayNumber())@"days left");
+		ClientMessage("TempBan slot"@i$":"@uManager.TempBannedPlayers[i].BannedPlayerName$","@(uManager.TempBannedPlayers[i].BannedDays-uManager.GetDayNumber())@"days left");
 }
 
 exec function UnBan( int Slot )
@@ -1851,7 +1850,7 @@ exec function UnBanTemp( int Slot )
 	j = uManager.TempBannedPlayers.Length;
 	if( j==0 )
 	{
-		ClientMessage("There is currently nobody temporarly banned");
+		ClientMessage("There is currently nobody temporary banned");
 		Return;
 	}
 
@@ -1861,7 +1860,7 @@ exec function UnBanTemp( int Slot )
 		Return;
 	}
 
-	AMessage("Unbanned tempban"@uManager.TempBannedPlayers[Slot].BannedPLName);
+	AMessage("Unbanned tempban"@uManager.TempBannedPlayers[Slot].BannedPlayerName);
 	j--;
 	For( i=Slot; i<j; i++ )
 		uManager.TempBannedPlayers[i] = uManager.TempBannedPlayers[i+1];
@@ -1905,14 +1904,14 @@ exec function CreateAdminAccount( string PlayerID )
  		uManager.AdminGroup.Length = NumAdmins + 1;
  		uManager.AdminGroup[NumAdmins].AdminGuid = PlayerController(C[0]).GetPlayerIDHash();
  		uManager.AdminGroup[NumAdmins].AdminPassword = CName;
- 		uManager.AdminGroup[NumAdmins].AdminPrivelages = "All";
+ 		uManager.AdminGroup[NumAdmins].AdminPrivileges = "All";
  		uManager.AdminGroup[NumAdmins].AdminName = "Newbie Admin";
  		uManager.AdminGroup[NumAdmins].AdminNickName = CName;
  		uManager.SaveConfig();
 
  		AMessage( CName@"is now an admin member" );
 
- 		Note( "Admin account successfully created, Use EditAccountPriv to control the admin account powers" );
+ 		Note( "Admin account successfully created. Use EditAccountPriv to control the admin account powers" );
  	}
 }
 
@@ -2008,13 +2007,13 @@ exec function PasswordAdminAccount( int AdminSlot, string Password )
 	Note( "Changed"@uManager.AdminGroup[AdminSlot].AdminNickName$"'s admin account password to"@Password );
 }
 
-final exec function SetACPriv( int AdminSlot, string Privelages )
+final exec function SetACPriv( int AdminSlot, string Privilages )
 {
-	PrivelagesAdminAccount( AdminSlot, Privelages );
+	PrivilagesAdminAccount( AdminSlot, Privilages );
 }
 
-// Set the admin privelages for admin account of AdminSlot to Privelages
-exec function PrivelagesAdminAccount( int AdminSlot, string Privelages )
+// Set the admin Privilages for admin account of AdminSlot to Privilages
+exec function PrivilagesAdminAccount( int AdminSlot, string Privilages )
 {
 	local int NumAdmins;
 
@@ -2034,10 +2033,10 @@ exec function PrivelagesAdminAccount( int AdminSlot, string Privelages )
 		return;
 	}
 
-	uManager.AdminGroup[AdminSlot].BlockedCommands = Privelages;
+	uManager.AdminGroup[AdminSlot].AdminPrivileges = Privilages;
 	uManager.SaveConfig();
 
-	Note( "Changed"@uManager.AdminGroup[AdminSlot].AdminNickName$"'s admin account privelages to"@Privelages );
+	Note( "Changed"@uManager.AdminGroup[AdminSlot].AdminNickName$"'s admin account privileges to"@Privilages );
 }
 
 // Shows the list of admin accounts
@@ -2056,7 +2055,7 @@ exec function ListAdminAccounts()
 	}
 
 	for( CurAdmin = 0; CurAdmin < NumAdmins; CurAdmin ++ )
-		ClientMessage( "Slot:"$CurAdmin@"Owner:"$uManager.AdminGroup[CurAdmin].AdminNickName@"Name:"$uManager.AdminGroup[CurAdmin].AdminName@"Password:"$uManager.AdminGroup[CurAdmin].AdminPassword@"Privelages:"$uManager.AdminGroup[CurAdmin].AdminPrivelages );
+		ClientMessage( "Slot:"$CurAdmin@"Owner:"$uManager.AdminGroup[CurAdmin].AdminNickName@"Name:"$uManager.AdminGroup[CurAdmin].AdminName@"Password:"$uManager.AdminGroup[CurAdmin].AdminPassword@"Privilages:"$uManager.AdminGroup[CurAdmin].AdminPrivileges );
 }
 //==============================================================================
 
@@ -2387,8 +2386,8 @@ exec function MapVote( string Cmd )
 				V.MVRI[i].VoteCount = 0;
 			}
 		V.TallyVotes(false);
-		Level.Game.Broadcast(Outer,"Mapvoting has been canceld");
-		AMessage("Mapvoting canceld");
+		Level.Game.Broadcast(Outer,"Mapvoting has been canceled");
+		AMessage("Mapvoting canceled");
 	}
 	else if( Cmd~="Begin" )
 	{

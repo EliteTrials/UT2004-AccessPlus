@@ -2,8 +2,8 @@
 // AccessPlus_Control.uc Created @ 2006
 // Coded by 'Marco' and 'Eliot van uytfanghe'
 //==============================================================================
-Class AccessPlus_Control Extends AccessControlIni
-	Config(AccessPlus);
+class AccessPlus_Control extends AccessControlIni
+	config(AccessPlus);
 
 // Structures
 
@@ -14,7 +14,7 @@ struct sAdmins
 		AdminName,
 		AdminPassword,
 		AdminGuid,
-		AdminPrivelages;
+		AdminPrivileges;
 };
 
 struct sTempBan
@@ -51,7 +51,7 @@ struct sLoggedClientsType
 };
 
 // Admins that are logged in
-var array<sAdminPriv> AdminPriveleges;
+var protected array<sAdminPriv> AdminPrivileges;
 
 var AccessPlus MyMutator;
 
@@ -318,10 +318,10 @@ function bool DidAdminLogin( PlayerController Other, string Password, bool bBroa
 	if( Password != "" && Password ~= GlobalAdminPW )
 	{
 		// Add this player(other) to the current logged admins list.
-		jx = AdminPriveleges.Length;
-		AdminPriveleges.Length = jx+1;
-		AdminPriveleges[jx].Admin = Other.PlayerReplicationInfo;
-		AdminPriveleges[jx].bMasterAdmin = True;
+		jx = AdminPrivileges.Length;
+		AdminPrivileges.Length = jx+1;
+		AdminPrivileges[jx].Admin = Other.PlayerReplicationInfo;
+		AdminPrivileges[jx].bMasterAdmin = True;
 
 		Other.PlayerReplicationInfo.bAdmin = True;
 		if( bBroadcast )
@@ -337,23 +337,23 @@ function bool DidAdminLogin( PlayerController Other, string Password, bool bBroa
 		if( AdminGroup[i].AdminGuid==ID || (AdminGroup[i].AdminPassword!="" && AdminGroup[i].AdminPassword~=Password) )
 		{
 			// Add this player(other) to the current logged admins list.
-			jx = AdminPriveleges.Length;
-			AdminPriveleges.Length = jx+1;
-			AdminPriveleges[jx].Admin = Other.PlayerReplicationInfo;
+			jx = AdminPrivileges.Length;
+			AdminPrivileges.Length = jx+1;
+			AdminPrivileges[jx].Admin = Other.PlayerReplicationInfo;
 
-			s = AdminGroup[i].AdminPrivelages;
+			s = AdminGroup[i].AdminPrivileges;
 			j = InStr(S,",");
 			While( j!=-1 )
 			{
-				AdminPriveleges[jx].BlockedCommands[AdminPriveleges[jx].NumBlckCmds] = Left(S,j);
-				AdminPriveleges[jx].NumBlckCmds++;
+				AdminPrivileges[jx].BlockedCommands[AdminPrivileges[jx].NumBlckCmds] = Left(S,j);
+				AdminPrivileges[jx].NumBlckCmds++;
 				S = Mid(S,j+1);
 				j = InStr(S,",");
 			}
 			if( S!="" )
 			{
-				AdminPriveleges[jx].BlockedCommands[AdminPriveleges[jx].NumBlckCmds] = S;
-				AdminPriveleges[jx].NumBlckCmds++;
+				AdminPrivileges[jx].BlockedCommands[AdminPrivileges[jx].NumBlckCmds] = S;
+				AdminPrivileges[jx].NumBlckCmds++;
 			}
 
 			Other.PlayerReplicationInfo.bAdmin = True;
@@ -369,12 +369,12 @@ Function string GetAdminLoginMessage( PlayerReplicationInfo PRI )
 {
 	local int CurAdmin, MaxAdmin;
 
-	MaxAdmin = AdminPriveleges.Length;
+	MaxAdmin = AdminPrivileges.Length;
 	for( CurAdmin = 0; CurAdmin < MaxAdmin; CurAdmin ++ )
 	{
-		if( AdminPriveleges[CurAdmin].Admin == PRI )
+		if( AdminPrivileges[CurAdmin].Admin == PRI )
 		{
-			if( AdminPriveleges[CurAdmin].bMasterAdmin )
+			if( AdminPrivileges[CurAdmin].bMasterAdmin )
 				return MyMutator.MakeColorCode( AdminTagColor )$MasterAdminTag$MyMutator.MakeColorCode( AdminNameColor )@PRI.PlayerName;
 			else return MyMutator.MakeColorCode( AdminTagColor )$CoAdminTag$MyMutator.MakeColorCode( AdminNameColor )@PRI.PlayerName;
 		}
@@ -391,12 +391,12 @@ Function string GetAdminLogoutMessage( PlayerReplicationInfo PRI )
 		Sex = "her";
 	else Sex = "his";
 
-	MaxAdmin = AdminPriveleges.Length;
+	MaxAdmin = AdminPrivileges.Length;
 	for( CurAdmin = 0; CurAdmin < MaxAdmin; CurAdmin ++ )
 	{
-		if( AdminPriveleges[CurAdmin].Admin == PRI )
+		if( AdminPrivileges[CurAdmin].Admin == PRI )
 		{
-			if( AdminPriveleges[CurAdmin].bMasterAdmin )
+			if( AdminPrivileges[CurAdmin].bMasterAdmin )
 				return MyMutator.MakeColorCode( AdminTagColor )$MasterAdminTag$MyMutator.MakeColorCode( AdminNameColor )@PRI.PlayerName@"gave up"@Sex@"administrator abilities";
 			else return MyMutator.MakeColorCode( AdminTagColor )$CoAdminTag$MyMutator.MakeColorCode( AdminNameColor )@PRI.PlayerName@"gave up"@Sex@"administrator abilities";
 		}
@@ -408,35 +408,35 @@ function bool MayExecute( PlayerController Other, string Cmd )
 {
 	local int i,j,x;
 
-	j = AdminPriveleges.Length;
+	j = AdminPrivileges.Length;
 	For( i=0; i<j; i++ )
 	{
-		if( AdminPriveleges[i].Admin!=None && AdminPriveleges[i].Admin==Other.PlayerReplicationInfo )
+		if( AdminPrivileges[i].Admin!=None && AdminPrivileges[i].Admin==Other.PlayerReplicationInfo )
 		{
-			if( AdminPriveleges[i].bMasterAdmin )
+			if( AdminPrivileges[i].bMasterAdmin )
 				Return True;
 			else if( Cmd~="MasterAdminCmd" )
 			{
 				Other.ClientMessage("You need to be logged in as global administrator to execute this command");
 				Return False;
 			}
-			else if( AdminPriveleges[i].BlockedCommands[0]=="All" )
+			else if( AdminPrivileges[i].BlockedCommands[0]=="All" )
 			{
 				Other.ClientMessage("You are currently unable to execute any admin commands");
 				Return False;
 			}
-			For( x=0; x<AdminPriveleges[i].NumBlckCmds; x++ )
+			For( x=0; x<AdminPrivileges[i].NumBlckCmds; x++ )
 			{
-				if( AdminPriveleges[i].BlockedCommands[x]~=Cmd )
+				if( AdminPrivileges[i].BlockedCommands[x]~=Cmd )
 				{
-					Other.ClientMessage("You don't have enough priveleges to execute command '"$Cmd$"'");
+					Other.ClientMessage("You don't have enough privileges to execute command '"$Cmd$"'");
 					Return false;
 				}
 			}
 			Return True;
 		}
 	}
-	Other.ClientMessage("You don't have any priveleges at all, please relogin as admin");
+	Other.ClientMessage("You don't have any privileges at all, please relogin as admin");
 	Return false;
 }
 
@@ -444,13 +444,13 @@ function RemoveAdminPriv( PlayerController Other )
 {
 	local int i,j;
 
-	j = AdminPriveleges.Length;
+	j = AdminPrivileges.Length;
 	For( i=0; i<j; i++ )
 	{
-		if( AdminPriveleges[i].Admin==None || AdminPriveleges[i].Admin==Other.PlayerReplicationInfo )
+		if( AdminPrivileges[i].Admin==None || AdminPrivileges[i].Admin==Other.PlayerReplicationInfo )
 		{
-			AdminPriveleges[i] = AdminPriveleges[j-1];
-			AdminPriveleges.Length = j-1;
+			AdminPrivileges[i] = AdminPrivileges[j-1];
+			AdminPrivileges.Length = j-1;
 			j--;
 		}
 	}
