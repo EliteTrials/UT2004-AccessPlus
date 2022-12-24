@@ -1,9 +1,9 @@
 //==============================================================================
-// AccessPlus.uc Created @ 2006
+// AccessPlus.uc Created @ 2006 - 2014(Polishment)
 // Coded by 'Marco' and 'Eliot van uytfanghe'
 //==============================================================================
-Class AccessPlus Extends Mutator
-	Config(AccessPlus);
+class AccessPlus extends Mutator
+	config(AccessPlus);
 
 const Version = "2.00 Pre-Release";
 
@@ -95,6 +95,21 @@ var() config array<sMapActors> MapActors;
 // Initialize Mutator
 function PreBeginPlay()
 {
+	// If this mutator was added as a server actor then we have to register ourself.
+	// if( !bUserAdded )
+	// {
+	// 	if( Level.Game.BaseMutator == none )
+	// 	{
+	// 		Level.Game.BaseMutator = self;
+	// 	}
+	// 	else
+	// 	{
+	// 		NextMutator = Level.Game.BaseMutator;
+	// 		Level.Game.BaseMutator = self;
+	// 	}
+	// 	bUserAdded = true;
+	// }
+
 	Log( "", Name );
 	Log( "================================================", Name );
 	Log( "=========="     $Name@Version$      "===========", Name );
@@ -103,8 +118,11 @@ function PreBeginPlay()
 
 	ScanServerPackages();
 
- 	if( Level.Game.AccessControl != None )
+ 	if( AccessPlus_Control(Level.Game.AccessControl) != None )
+ 	{
+ 		Warn("An AccessControl was found, destroying!");
  		Level.Game.AccessControl.Destroy();
+ 	}
 
  	Level.Game.AccessControl = Spawn( Class'AccessPlus_Control', Level.Game );
 }
@@ -337,7 +355,7 @@ function Timer()
 		}
 		For( i=0; i<S.Length; i++ )
 		{
-			Msg = "Lag alert:"@S[i].PlayerName@"is downloading"@S[i].DLFile@"off server, lag may occurr!";
+			Msg = "Lag alert:"@S[i].PlayerName@"is downloading"@S[i].DLFile@"off server, lag may occur!";
 			Log(Msg,Name);
 			Level.Game.Broadcast(Self,Msg);
 			OldDownloaders[OldDownloaders.Length] = S[i].PlayerIP;
@@ -345,7 +363,7 @@ function Timer()
 	}
 	else if( OldDLersCount<c )
 	{
-		Level.Game.Broadcast(Self,"Lag alert: a client is downloading off server, lag may occurr!");
+		Level.Game.Broadcast(Self,"Lag alert: a client is downloading off server, lag may occur!");
 		if( OldDLersCount==0 )
 			SetTimer(1,True);
 	}

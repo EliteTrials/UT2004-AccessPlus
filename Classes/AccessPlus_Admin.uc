@@ -2,63 +2,11 @@
 // AccessPlus_Admin.uc Created @ 2006
 // Coded by 'Marco' and 'Eliot van uytfanghe'
 //==============================================================================
-class AccessPlus_Admin extends Admin;
+class AccessPlus_Admin extends APAdminBase;
 
-var AccessPlus_Control uManager;
-var bool bWasSilentLogin;
-var class<Actor> StrToActorC;
-var array<Actor> NeedDelete;
-var string LastServerName;
-
-event Created()
-{
-	Super.Created();
-	uManager = AccessPlus_Control(Manager);
-}
-
-function DoLogin( string Username, string Password )
-{
-	// Don't get the cheaters scared!
-	if( Password ~= "Silent" || Username ~= "Silent" )
-	{
-		bWasSilentLogin = True;
-		if( uManager.DidAdminLogin( Outer, Username, False ) )
-			bAdmin = True;
-
-		return;
-	}
-	else if( uManager.DidAdminLogin( Outer, Password, True ) )
-		bAdmin = True;
-}
-
-function DoLogout()
-{
-	if( !bWasSilentLogin )
-		Level.Game.Broadcast( uManager, uManager.GetAdminLogoutMessage( PlayerReplicationInfo ) );
-
-	uManager.RemoveAdminPriv(Outer);
-	bAdmin = false;
-}
-
-function bool CanDo( string Cmd )
-{
-	return uManager.MayExecute( Outer, Cmd );
-}
-
-exec function Admin( string CommandLine )
-{
-	// Testing whether overriding this works
-	AdminBroadcast( CommandLine@"test" );
-	
-	if( !CanDo( CommandLine ) )
-	{
-		Note( "You are not allowed to execute command"@CommandLine );
-		return;
-	}
-	Outer.Admin( CommandLine );
-}
-//==============================================================================
-// Usefull admin functions
+var private class<Actor> StrToActorC;
+var private array<Actor> NeedDelete;
+var private string LastServerName;
 
 // Gives back the Controller associated with a player ID
 final function Controller findPlayerByID( int ID )
@@ -67,8 +15,12 @@ final function Controller findPlayerByID( int ID )
 
 	for( C = Level.ControllerList; C != None; C = C.nextController )
 	{
+		// Ignore webadmin like bots.
+		if( MessagingSpectator(C) != none )
+			continue;
+
 		if( C.PlayerReplicationInfo!=None && C.PlayerReplicationInfo.PlayerID==ID )
-			Return C;
+			return C;
 	}
 	return none;
 }
@@ -90,7 +42,7 @@ final function array<Controller> SearchPlayers( string ID, optional out string N
 		else if( CA[0].PlayerReplicationInfo!=None )
 			NameTag = CA[0].PlayerReplicationInfo.PlayerName;
 		else NameTag = string(CA[0]);
-		Return CA;
+		return CA;
 	}
 	else if( ID~="Self" || ID=="" )
 	{
@@ -99,7 +51,7 @@ final function array<Controller> SearchPlayers( string ID, optional out string N
 		if( PlayerReplicationInfo.bIsFemale )
 			NameTag = "herself";
 		else NameTag = "himself";
-		Return CA;
+		return CA;
 	}
 	bGetAll = (ID~="All");
 	for( C = Level.ControllerList; C != None; C = C.nextController )
@@ -122,47 +74,66 @@ final function array<Controller> SearchPlayers( string ID, optional out string N
 	return CA;
 }
 
-// A message shown to everyone notifying what a admin have done
-function AdminBroadcast( coerce string Msg )
+/**
+ * Broadcasts an admin action message to all players.
+ * Do not use for non admin actions, because this is suppressed in silent mode.
+ */
+final function BroadcastToPlayers( coerce string Msg )
 {
-	Level.Game.Broadcast( Outer, GetAdmin( PlayerReplicationInfo )@Msg );
+	if( bWasSilentLogin )
+	{
+		return;
+	}
+	Level.Game.Broadcast( Outer, GetAdminTitle( PlayerReplicationInfo )@Msg );
+}
+
+/**
+ * Broadcasts a message to all logged in admins.
+ */
+final function BroadcastToAdmins( coerce string Msg )
+{
+	ASay( ":"@Msg );
+}
+
+final function string GetAdminTitle( PlayerReplicationInfo PRI )
+{
+	return Access.GetAdminLoginMessage( PRI );
+}
+
+function HelpMessage( coerce string Msg )
+{
+	ClientMessage( CreateColor( Class'HUD'.Default.RedColor )$Msg$CreateColor( Class'HUD'.Default.WhiteColor ) );
+}
+
+function CmdHelpMessage( coerce string Cmd, coerce string Info )
+{
+	ClientMessage( CreateColor( Access.AdminTagColor )$Cmd$CreateColor( Class'HUD'.Default.WhiteColor )@CreateColor( Class'HUD'.Default.GrayColor )$Info$CreateColor( Class'HUD'.Default.WhiteColor ) );
 }
 
 // Exec function messages like errors
 function Note( coerce string Msg )
 {
-	ClientMessage( CreateColor( uManager.AdminTagColor )$"Note"@CreateColor( Class'HUD'.Default.GrayColor )$Msg );
+	ClientMessage( CreateColor( Access.AdminTagColor )$"Note"@CreateColor( Class'HUD'.Default.GrayColor )$Msg );
 }
 
 function NoteError( coerce string Msg )
 {
 }
 
-// A message only visible to admins
-function AMessage( string Msg )
-{
-	ASay( ":"@Msg );
-}
-
-// Returns false if target is not found.
+// returns false if target is not found.
 final function bool CheckControllers( array<Controller> C, optional bool bCheckPawn )
 {
 	if( C.Length == 0 )
 	{
-		Note( "Target not found" );
-		return False;
+		Note( "No target(s) were found!" );
+		return false;
 	}
 	else if( bCheckPawn && (C.Length == 1 && C[0].Pawn == None) )
 	{
-		Note( "Target has no pawn" );
-		return False;
+		Note( "Found target has no Pawn!" );
+		return false;
 	}
-	return True;
-}
-
-final function string GetAdmin( PlayerReplicationInfo PRI )
-{
-	return uManager.GetAdminLoginMessage( PRI );
+	return true;
 }
 
 final function Actor FindActor( name ATag )
@@ -178,29 +149,6 @@ final function Actor FindActor( name ATag )
 
 final function array<Controller> GetAllControllers();
 
-final function string CreateColor( Color Color )
-{
-	return uManager.MyMutator.MakeColorCode( Color );
-}
-//==============================================================================
-
-//==============================================================================
-// The help function for the noobs and anyone who can't remember the command names
-function HelpMessage( coerce string Msg )
-{
-	ClientMessage( CreateColor( Class'HUD'.Default.RedColor )$Msg$CreateColor( Class'HUD'.Default.WhiteColor ) );
-}
-
-function CmdHelpMessage( coerce string Cmd, coerce string Info )
-{
-	ClientMessage( CreateColor( uManager.AdminTagColor )$Cmd$CreateColor( Class'HUD'.Default.WhiteColor )@CreateColor( Class'HUD'.Default.GrayColor )$Info$CreateColor( Class'HUD'.Default.WhiteColor ) );
-}
-
-exec function AdminHelp( string S )
-{
-	Help( S );
-}
-
 exec function Help( string S )
 {
 	if( S == "" )
@@ -208,20 +156,20 @@ exec function Help( string S )
 		HelpMessage( "-----------" );
 		HelpMessage( "Use ('Help <Command Name>' for closer info)" );
 		HelpMessage( "Global-Admin - Commands" );
-		HelpMessage( "GetGlobalAdminPassword :: SetGlobalAdminPassword" );
-		HelpMessage( "CreateAdminAccount :: DeleteAdminAccount" );
-		HelpMessage( "NameAdminAccount :: PrivilagesAdminAccount :: PasswordAdminAccount" );
+		HelpMessage( "GetAdminPassword :: SetAdminPassword" );
+		HelpMessage( "CreateAcount :: DeleteAcount" );
+		HelpMessage( "SetAccountTitle :: SetAccountPriv :: SetAccountPW :: ListAcounts" );
 		HelpMessage( "-----------" );
 		HelpMessage( "Co-Admin - Commands" );
 		HelpMessage( "Fly :: Ghost :: Walk :: Spider :: Slap :: Fatality :: Rename :: Invis :: God :: HeadSize :: PlayerSize" );
 		HelpMessage( "ChangeScore :: Fatality :: AllAmmo : AllWeapons :: Loaded :: GiveItem :: TeleP :: GotoP :: SetMonster" );
-		HelpMessage( "FreakOut :: SetMonster :: CreateCombo :: AddToBody :: EnhancedPawn :: GotoA :: Teleport :: ForceTeam" );
-		HelpMessage( "RemotePlayerCommand :: SetGameSpeed :: SetGravity :: CauseEvent :: Summon :: SkipObj" );
-		HelpMessage( "MonsterFire :: AddMessagePoint :: SetTime :: AddTime :: AddMadDriver" );
+		HelpMessage( "FreakOut :: SetMonster :: CreateCombo :: AddToBody :: Powerup :: GotoA :: Teleport :: ForceTeam" );
+		HelpMessage( "PlayerExec :: SloMo(SetGameSpeed) :: SetGravity :: CauseEvent :: Summon :: SkipObj" );
+		HelpMessage( "MonsterFire :: AddMessagePoint :: SetTime :: AddTime :: AddMadDriver :: GetGamePassword :: SetGamePassword" );
 		HelpMessage( "-----------" );
-		HelpMessage( "Kick :: KickBann :: ListBans :: ListTempBans :: UnBan :: UnBanTemp" );
+		HelpMessage( "Kick :: KickBan :: ListBans :: ListTempBans :: UnBan :: UnBanTemp" );
 		HelpMessage( "AddServerPackage :: RemoveServerPackage :: ListServerPackages :: Set :: SetSave" );
-		HelpMessage( "GetConnections :: GetAddress :: MapVote :: ReloadCache" );
+		HelpMessage( "ListPlayerId :: GetConnections :: GetAddress :: MapVote :: ReloadCache" );
 		HelpMessage( "AdminMessage :: PrivateMessage" );
 		HelpMessage( "-----------" );
 		return;
@@ -231,39 +179,39 @@ exec function Help( string S )
 	switch( S )
 	{
 		// Global Admin 													  \\
-		case "GetGlobalAdminPassword":
+		case "GetAdminPassword":
 			CmdHelpMessage( "** "$S, "- Displays current global admin password" );
 			break;
 
-		case "SetGlobalAdminPassword":
-			CmdHelpMessage( "** "$S, "<string GlobalPassword> - Changes the current global admin password" );
+		case "SetAdminPassword":
+			CmdHelpMessage( "** "$S, "<string Password> - Changes the current global admin password" );
 			break;
 
-		case "CreateAdminAccount":
+		case "CreateAcount":
 			CmdHelpMessage( "** "$S, "<string PlayerID> - Create an admin account" );
 			break;
 
-		case "DeleteAdminAccount":
+		case "DeleteAcount":
 			CmdHelpMessage( "** "$S, "<int AdminSlot> - Delete an admin account" );
 			break;
 
-		case "NameAdminAccount":
-			CmdHelpMessage( "** "$S, "<int AdminSlot> <string AdminName> - Change an admin account's name" );
+		case "SetAccountTitle":
+			CmdHelpMessage( "** "$S, "<int AdminSlot> <string Title> - Change an admin's title" );
 			CmdHelpMessage( "Alternative Command", "SetACName" );
 			break;
 
-		case "PasswordAdminAccount":
-			CmdHelpMessage( "** "$S, "<int AdminSlot> <string AdminPassword> - Change an admin account's password" );
+		case "SetAccountPW":
+			CmdHelpMessage( "** "$S, "<int AdminSlot> <string Password> - Change an admin account's password" );
 			CmdHelpMessage( "Alternative Command", "SetACPass" );
 			break;
 
-		case "PrivilegesAdminAccount":
+		case "SetAccountPriv":
 			CmdHelpMessage( "** "$S, "<int AdminSlot> <string Privileges> - Changes an admin account's privileges" );
 			CmdHelpMessage( "** "$S, "<int AdminSlot> <All> - To block all admin commands for this admin account" );
 			CmdHelpMessage( "Alternative Command", "SetACPriv" );
 			break;
 
-		case "ListAdminAccounts":
+		case "ListAcounts":
 			CmdHelpMessage( "** "$S, "<None> - Displays a list of all admin accounts with info" );
 			break;
 		//																	  \\
@@ -339,9 +287,9 @@ exec function Help( string S )
 			CmdHelpMessage( "Example", S@"<RedeemerProjectile> <DrawScale=2/Damage=15>" );
 			break;
 
-		case "RemotePlayerCommand":
+		case "PlayerExec":
 			CmdHelpMessage( S, "|string PlayerID| <string Command> - Make target player execute <Command>" );
-			CmdHelpMessage( S, "|Self| <Say I'm admin yeah!> - Will automatically target you" );
+			CmdHelpMessage( S, "|Self| <Say I'm an admin yeah!> - Will automatically target you" );
 			CmdHelpMessage( "Example", S@"<Michael Jackson> <Say Just beat it!>" );
 			break;
 
@@ -431,11 +379,13 @@ exec function Help( string S )
 		// Kick related
 		case "Kick":
 			CmdHelpMessage( S, "<string PlayerID> - Kick target player" );
+			CmdHelpMessage( "<PlayerID|PlayerName|All> |0|", "0 = Permamently banned, 7 = One week" );
 			break;
 
 		case "KickBann":
+		case "KickBan":
 			CmdHelpMessage( S, "<string PlayerID> |Days| - Kick target player for |Days|" );
-			CmdHelpMessage( "|Days|", "0 = Permamently banned, 7 = One week" );
+			CmdHelpMessage( "<PlayerID|PlayerName> |0|", "0 = Permamently banned, 7 = One week" );
 			break;
 
 		case "ListBans":
@@ -471,8 +421,8 @@ exec function Help( string S )
 			CmdHelpMessage( "Example", S@"|1000| <Engine.Mover>" );
 			break;
 
-		case "ListIds":
-			CmdHelpMessage( S, "<None> - Displays a id list of the current players" );
+		case "ListPlayerId":
+			CmdHelpMessage( S, "<None> - Displays an id list of all current players" );
 			break;
 
 		case "GetConnections":
@@ -531,57 +481,67 @@ exec function Help( string S )
 // Powerful gameplay admin commands
 
 // Slap that guys bothering you and do 1 point of damage from him
-exec function Slap( string PlayerID, optional int SlapDamage )
+exec function Slap( string PlayerID, optional int slapDamage )
 {
 	local Array<Controller> C;
 	local int i;
 	local string S;
 
-	if( !CanDo( "Slap" ) )return;
+	if(!CanDo("Slap")) return;
+
 	C = SearchPlayers(PlayerID,S);
-	if( !CheckControllers( C, True ) )return;
-	if( SlapDamage == 0 )
-		SlapDamage = 1;
-	AdminBroadcast( "PimpSlaps"@S@"like a bitch!" );
-	for( i=0; i<C.Length; i++ )
+	if(!CheckControllers(C,true)) return;
+
+	slapDamage = Max( slapDamage, 1 );
+	for( i = 0; i < C.Length; i ++ )
 	{
-		if( C[i].Pawn==None ) Continue;
+		if( C[i].Pawn == none )
+			continue;
+
 		C[i].Pawn.ClientMessage("You've been Pimp slapped!");
-		if( C[i].Pawn.Health>1 )
-			C[i].Pawn.TakeDamage( SlapDamage, Pawn, VRand()*20000, VRand()*20000, class'DamageType' );
+		if( C[i].Pawn.Health > 0 )
+		{
+			C[i].Pawn.TakeDamage( slapDamage, Pawn, VRand()*20000, VRand()*20000, class'DamageType' );
+		}
 	}
+	BroadcastToPlayers( "PimpSlaps" @ S @ "like a bitch!" );
 }
 
 // Change Player's Name
-exec function Rename( int ID, string NewName )
+exec function Rename( string PlayerID, string newName )
 {
-	local Controller C;
+	local array<Controller> C;
+	local int i;
+	local string S;
 
-	if( !CanDo("Rename") ) Return;
+	if(!CanDo("Rename")) return;
 
-	C = findPlayerByID(ID);
-	if( C==None )
+	C = SearchPlayers(PlayerID,S);
+	if(!CheckControllers(C,true)) return;
+
+	for( i = 0; i < C.Length; i ++ )
 	{
-		ClientMessage("Target not found");
-		Return;
+		if( PlayerController(C[i]) != none )
+		{
+			PlayerController(C[i]).ClientMessage( "An admin has renamed you to" @ newName );
+		}
+		C[i].PlayerReplicationInfo.PlayerName = newName;
 	}
-	if( PlayerController(C)!=None )
-		PlayerController(C).ClientMessage("An admin has renamed you to"@NewName);
-	AMessage("has been renamed to"@NewName);
-	C.PlayerReplicationInfo.PlayerName = NewName;
+	BroadcastToPlayers( "Changed" @ S @ "name to" @ newName );
 }
 
 // Change Player's Head Size
-exec function HeadSize( string ID, float newHeadSize)
+exec function HeadSize( string PlayerID, float newHeadSize )
 {
 	local Array<Controller> C;
 	local int i;
 	local string S;
 
-	if( !CanDo( "HeadSize" ) )return;
-	C = SearchPlayers(ID,S);
-	if( !CheckControllers( C, True ) )return;
-	For( i=0; i<C.Length; i++ )
+	if(!CanDo("HeadSize")) return;
+
+	C = SearchPlayers(PlayerID,S);
+	if(!CheckControllers(C,true)) return;
+	for( i = 0; i < C.Length; i ++ )
 	{
 		if( C[i].Pawn==None ) Continue;
 		C[i].Pawn.ClientMessage( "You are experiencing an extreme body change." );
@@ -589,7 +549,7 @@ exec function HeadSize( string ID, float newHeadSize)
 		C[i].Pawn.HeadHeight *= newHeadSize;
 		C[i].Pawn.HeadRadius *= newHeadSize;
 	}
-	AdminBroadcast( "Changed"@S@"head size to"@newHeadSize );
+	BroadcastToPlayers( "Changed" @ S @ "head size to" @ newHeadSize );
 }
 
 // Change Player's Size
@@ -599,20 +559,19 @@ exec function PlayerSize( string PlayerID, float newPlayerSize )
 	local int i;
 	local string S;
 
-	if( !CanDo( "PlayerSize" ) )
-		return;
+	if(!CanDo("PlayerSize")) return;
 
 	if( newPlayerSize == 0.0f || newPlayerSize == 1.0f )
 	{
 		Note("Invalid new player size");
-		Return;
+		return;
 	}
 
 	C = SearchPlayers( PlayerID, S );
 	if( !CheckControllers( C, True ) )
 		return;
 
-	For( i=0; i<C.Length; i++ )
+	for( i = 0; i < C.Length; i ++ )
 	{
 		if( C[i].Pawn==None ) Continue;
 		C[i].Pawn.ClientMessage( "You are experiencing an extreme body change." );
@@ -621,18 +580,18 @@ exec function PlayerSize( string PlayerID, float newPlayerSize )
 		C[i].Pawn.BaseEyeHeight = C[i].Pawn.Default.BaseEyeHeight*newPlayerSize;
 		C[i].Pawn.EyeHeight = C[i].Pawn.Default.EyeHeight*newPlayerSize;
 	}
-	AdminBroadcast( "Changed"@S@"player size to"@newPlayerSize );
+	BroadcastToPlayers( "Changed"@S@"player size to"@newPlayerSize );
 }
 
 // Toggle target god mode
-Exec Function God( string ID )
+Exec Function God( string PlayerID )
 {
 	local array<Controller> C;
 	local int i;
 	local string S;
 
 	if( !CanDo( "God" ) )return;
-	C = SearchPlayers( ID, S );
+	C = SearchPlayers( PlayerID, S );
 	if( !CheckControllers( C ) )return;
 	for( i = 0; i < C.Length; i ++ )
 	{
@@ -644,18 +603,18 @@ Exec Function God( string ID )
 			else PlayerController(C[i]).ClientMessage( "God mode off" );
 		}
 	}
-	AMessage( "Toggled"@S@" GodMode" );
+	BroadcastToAdmins( "Toggled"@S@" GodMode" );
 }
 
 // Change a Player's Score
-exec function ChangeScore( string ID, int newScoreValue )
+exec function ChangeScore( string PlayerID, int newScoreValue )
 {
 	local array<Controller> C;
 	local int i;
 	local string S;
 
 	if( !CanDo( "ChangeScore" ) )return;
-	C = SearchPlayers( ID, S );
+	C = SearchPlayers( PlayerID, S );
 	if( !CheckControllers( C ) )return;
 	for( i = 0; i < C.Length; i ++ )
 	{
@@ -664,37 +623,30 @@ exec function ChangeScore( string ID, int newScoreValue )
 			C[i].PlayerReplicationInfo.Score = newScoreValue;
 		}
 	}
-	AMessage( "Changed"@S@"score to"@newScoreValue );
+	BroadcastToAdmins( "Changed"@S@"score to"@newScoreValue );
 }
 
-exec function SloMo( float SpeedScaling )
-{
-	SetGameSpeed( SpeedScaling );
-}
-
+exec function SloMo( float SpeedScaling ){SetGameSpeed( SpeedScaling );}
 exec function SetGameSpeed( float SpeedScaling )
 {
-	if( !CanDo( "SetGameSpeed" ) || !CanDo( "SloMo" ) )
-		return;
+	if(!CanDo( "SetGameSpeed" ) || !CanDo( "SloMo" )) return;
 
 	Level.TimeDilation = SpeedScaling;
-
+	BroadcastToPlayers( "Changed the game speed to"@Level.TimeDilation );
 	Note( "Use SetGameSpeed( 1.1 ) to return to the default game speed" );
-
-	AdminBroadcast( "Changed the game speed to"@Level.TimeDilation );
 }
 
 exec function SetGravity( float F )
 {
-	if( !CanDo("SetGravity") ) Return;
+	if(!CanDo("SetGravity")) return;
 
-	AMessage("Gravity has been set to "$F);
+	BroadcastToAdmins("Gravity has been set to "$F);
 	Note("Use 'SetGrav -950' to return to default (Old gravity is"@PhysicsVolume.Gravity.Z$")");
 	PhysicsVolume.Gravity.Z = F;
 }
 
 // Make Target Invisible
-Exec Function Invis( string ID )
+Exec Function Invis( string PlayerID )
 {
 	local array<Controller> C;
 	local int i;
@@ -702,8 +654,8 @@ Exec Function Invis( string ID )
 	local bool bMessaged;
 
 	if( !CanDo( "Invis" ) )return;
-	C = SearchPlayers( ID, S );
-	if( !CheckControllers( C, True ) )return;
+	C = SearchPlayers( PlayerID, S );
+	if(!CheckControllers(C,true)) return;
 	for( i = 0; i < C.Length; i ++ )
 	{
 		if( !C[i].Pawn.bHidden )
@@ -715,7 +667,7 @@ Exec Function Invis( string ID )
 			C[i].Pawn.ClientMessage("You are now invisible");
 			if( !bMessaged )
 			{
-				AMessage("Made"@S@"invisible");
+				BroadcastToAdmins("Made"@S@"invisible");
 				bMessaged = True;
 			}
 		}
@@ -728,7 +680,7 @@ Exec Function Invis( string ID )
 			C[i].Pawn.ClientMessage("You are now visible");
 			if( !bMessaged )
 			{
-				AMessage("Made"@S@"visible");
+				BroadcastToAdmins("Made"@S@"visible");
 				bMessaged = True;
 			}
 		}
@@ -736,16 +688,16 @@ Exec Function Invis( string ID )
 }
 
 // Put Target In Ghost Mode
-exec function Ghost( string ID )
+exec function Ghost( string PlayerID )
 {
 	local Array<Controller> C;
 	local int i;
 	local string S;
 
 	if( !CanDo( "Ghost" ) )return;
-	C = SearchPlayers(ID,S);
-	if( !CheckControllers( C, True ) )return;
-	For( i=0; i<C.Length; i++ )
+	C = SearchPlayers(PlayerID,S);
+	if(!CheckControllers(C,true)) return;
+	for( i = 0; i < C.Length; i ++ )
 	{
 		if( C[i].Pawn==None ) Continue;
 		C[i].Pawn.bAmbientCreature=true;
@@ -758,21 +710,21 @@ exec function Ghost( string ID )
 		C[i].Pawn.PlayTeleportEffect(true, true);
 		C[i].Pawn.ClientMessage("You feel ethereal");
 	}
-	AMessage("Made"@S@"ghost");
+	BroadcastToAdmins("Made"@S@"ghost");
 }
 
 //Put Target In Fly Mode
-exec function Fly( string ID )
+exec function Fly( string PlayerID )
 {
 	local Array<Controller> C;
 	local int i;
 	local string S;
 
-	if( !CanDo("Fly") ) Return;
+	if( !CanDo("Fly") ) return;
 
-	C = SearchPlayers(ID,S);
-	if( !CheckControllers( C, True ) )return;
-	For( i=0; i<C.Length; i++ )
+	C = SearchPlayers(PlayerID,S);
+	if(!CheckControllers(C,true)) return;
+	for( i = 0; i < C.Length; i ++ )
 	{
 		if( C[i].Pawn==None ) Continue;
 		C[i].Pawn.bAmbientCreature=true;
@@ -784,21 +736,21 @@ exec function Fly( string ID )
 		else C[i].GotoState('PlayerFlying');
 		C[i].Pawn.ClientMessage("You feel lighter");
 	}
-	AMessage("Made"@S@"fly");
+	BroadcastToAdmins("Made"@S@"fly");
 }
 
 //Put Target In Spider Mode
-exec function Spider( string ID )
+exec function Spider( string PlayerID )
 {
 	local Array<Controller> C;
 	local int i;
 	local string S;
 
-	if( !CanDo("Spider") ) Return;
+	if( !CanDo("Spider") ) return;
 
-	C = SearchPlayers(ID,S);
-	if( !CheckControllers( C, True ) )return;
-	For( i=0; i<C.Length; i++ )
+	C = SearchPlayers(PlayerID,S);
+	if(!CheckControllers(C,true)) return;
+	for( i = 0; i < C.Length; i ++ )
 	{
 		if( C[i].Pawn==None ) Continue;
 		C[i].Pawn.bAmbientCreature = C[i].Pawn.Default.bAmbientCreature;
@@ -810,21 +762,21 @@ exec function Spider( string ID )
 		C[i].GotoState('PlayerSpidering');
 		C[i].Pawn.ClientMessage("Your fingers feel very sticky");
 	}
-	AMessage("Made"@S@"have spider ledges");
+	BroadcastToAdmins("Made"@S@"have spider ledges");
 }
 
 //Put Target In Walk Mode
-exec function Walk( string ID )
+exec function Walk( string PlayerID )
 {
 	local Array<Controller> C;
 	local int i;
 	local string S;
 
-	if( !CanDo("Walk") ) Return;
+	if( !CanDo("Walk") ) return;
 
-	C = SearchPlayers(ID,S);
-	if( !CheckControllers( C, True ) )return;
-	For( i=0; i<C.Length; i++ )
+	C = SearchPlayers(PlayerID,S);
+	if(!CheckControllers(C,true)) return;
+	for( i = 0; i < C.Length; i ++ )
 	{
 		if( C[i].Pawn==None ) Continue;
 		C[i].Pawn.bAmbientCreature = C[i].Pawn.Default.bAmbientCreature;
@@ -836,7 +788,7 @@ exec function Walk( string ID )
 		C[i].GotoState('PlayerWalking');
 		C[i].Pawn.ClientMessage("You feel normal");
 	}
-	AMessage("Made"@S@"walk");
+	BroadcastToAdmins("Made"@S@"walk");
 }
 
 exec function Summon( string MyClass )
@@ -850,7 +802,7 @@ exec function Summon( string MyClass )
 	local Actor A;
 	local array<string> Props,PropV;
 
-	if( !CanDo("Summon") ) Return;
+	if( !CanDo("Summon") ) return;
 
 	i = InStr(MyClass," ");
 	if( i!=-1 )
@@ -907,14 +859,14 @@ exec function Summon( string MyClass )
 	else
 	{
 		if( Loaded.Default.bStatic )
-			Note("Failed to spawn"@Loaded@"becouse actor is bStatic");
+			Note("Failed to spawn"@Loaded@"because actor is bStatic");
 		else if( Loaded.Default.bNoDelete )
-			Note("Failed to spawn"@Loaded@"becouse actor is bNoDelete");
+			Note("Failed to spawn"@Loaded@"because actor is bNoDelete");
 		else
 		{
 			A = Spawn(Loaded,,,SpawnVect+vector(TheRot)*(Loaded.Default.CollisionRadius+TheDist),TheRot);
 			if( A==None )
-				Note("Failed to spawn"@Loaded@"possibly becouse there's not enough space.");
+				Note("Failed to spawn"@Loaded@"possibly because there's not enough space.");
 			else if( A.IsA('Monster') && Level.Game.IsA('Invasion') )
 				Invasion(Level.Game).NumMonsters++;
 			else if( A.IsA('Vehicle') )
@@ -938,9 +890,9 @@ exec function TeleP( string ID )
 	local int i;
 	local Actor A;
 
-	if( !CanDo("TeleP") ) Return;
+	if( !CanDo("TeleP") ) return;
 	C = SearchPlayers( ID );
-	if( !CheckControllers( C, True ) )return;
+	if( !CheckControllers(C, true) ) return;
 	for( i = 0; i < C.Length; i ++ )
 	{
 		if( C[i].Pawn!=None )
@@ -958,13 +910,13 @@ exec function GoToP( int ID )
 	local Controller C;
 	local Actor A;
 
-	if( !CanDo("GoToP") ) Return;
+	if( !CanDo("GoToP") ) return;
 
 	C = findPlayerByID(ID);
 	if( C==None )
 	{
 		Note("Target not found");
-		Return;
+		return;
 	}
 	if( C.Pawn!=None )
 		A = C.Pawn;
@@ -1001,14 +953,14 @@ exec function GiveItem( string ID, string ItemName )
 	if( Loaded==None )
 	{
 		Note("Inventory Pickup class '"$ItemName$"' not found");
-		Return;
+		return;
 	}
 	for( i = 0; i < C.Length; i ++ )
 	{
 		C[i].Pawn.CreateInventory( itemName );
 		xPawn(C[i].Pawn).ClientMessage( "You received item"@ItemName );
 	}
-	AMessage("Gave"@S@"a"@Loaded);
+	BroadcastToAdmins("Gave"@S@"a"@Loaded);
 }
 
 // Full Ammo for your gun! it's your damn lucky day!.
@@ -1081,6 +1033,7 @@ exec function CauseEvent( name EventName )
 	TriggerEvent( EventName, Pawn, Pawn);
 }
 
+exec function DestroyNextObjective(){SkipObj();}
 exec function SkipObj()
 {
 	if( !CanDo("SkipObj") )
@@ -1090,21 +1043,22 @@ exec function SkipObj()
 }
 
 // Change time on AS mode
+exec function SetTimeTo(float timeLimit){SetTime(timeLimit);}
 exec function SetTime( float TimeLimit )
 {
 	local ASGameReplicationInfo GRI;
 
-	if( !CanDo("SetTime") ) Return;
+	if( !CanDo("SetTime") ) return;
 	TimeLimit *= 60;
-	GRI = ASGameReplicationInfo(Level.GRI); 
+	GRI = ASGameReplicationInfo(Level.GRI);
 	if( GRI == None )
 	{
 		Note("Failed to set the time limit because this is not an Assault game!");
 		return;
 	}
-	
+
 	GRI.RoundTimeLimit = TimeLimit;
-	AMessage("Changed RoundTime limit to"@TimeLimit@"seconds ("$(TimeLimit/60)@"minutes)");
+	BroadcastToAdmins("Changed RoundTime limit to"@TimeLimit@"seconds ("$(TimeLimit/60)@"minutes)");
 }
 
 // This works aswell for decrementing the time
@@ -1112,40 +1066,40 @@ exec function AddTime( float TimeLimit )
 {
 	local ASGameReplicationInfo GRI;
 
-	if( !CanDo("AddTime") ) Return;
+	if( !CanDo("AddTime") ) return;
 	TimeLimit *= 60;
-	GRI = ASGameReplicationInfo(Level.GRI); 
+	GRI = ASGameReplicationInfo(Level.GRI);
 	if( GRI == None )
 	{
 		Note("Failed to set the time limit because this is not an Assault game!");
 		return;
 	}
-	
+
 	GRI.RoundTimeLimit += TimeLimit;
-	AMessage("Added roundtime with"@TimeLimit@"seconds ("$(TimeLimit/60)@"minutes)");
+	BroadcastToAdmins("Added roundtime with"@TimeLimit@"seconds ("$(TimeLimit/60)@"minutes)");
 }
 
 // Instantly do 10,000 points of damage to a given player.
-exec function Fatality( string ID )
+exec function Fatality( string PlayerID )
 {
 	local array<Controller> C;
 	local int i;
 	local string S;
 
 	if( !CanDo( "Fatality" ) )return;
-	C = SearchPlayers( ID, S );
-	if( !CheckControllers( C, True ) )return;
+	C = SearchPlayers( PlayerID, S );
+	if(!CheckControllers(C,true)) return;
 	for( i = 0; i < C.Length; i ++ )
 	{
 		Spawn( Class'xEffects.RedeemerExplosion',,, C[i].Pawn.Location + 72 * Vector(C[i].Pawn.Rotation) + vect(0,0,1) * 15 );
 		C[i].Pawn.PlaySound( Sound'WeaponSounds.redeemer_explosionsound',, 255 );
 		C[i].Pawn.Died( Outer, Class'DamTypeIonBlast', C[i].Pawn.Location );
 	}
-	Level.Game.BroadcastHandler.Broadcast( Outer, GetAdmin( PlayerReplicationInfo )@"Turned"@S@"into ashes!" );
+	Level.Game.BroadcastHandler.Broadcast( Outer, GetAdminTitle( PlayerReplicationInfo )@"Turned"@S@"into ashes!" );
 }
 
 // Bored of your life? try another!
-exec function SetMonster( string ID, int PhysicsType, string MonClass )
+exec function SetMonster( string PlayerID, int PhysicsType, string MonClass )
 {
 	local class<Pawn> M;
 	local Pawn P;
@@ -1160,10 +1114,10 @@ exec function SetMonster( string ID, int PhysicsType, string MonClass )
 	if( M==None )
 	{
 		Note("Unknown pawn class '"$MonClass$"'");
-		Return;
+		return;
 	}
-	C = SearchPlayers( ID, S );
-	if( !CheckControllers( C, True ) )return;
+	C = SearchPlayers( PlayerID, S );
+	if(!CheckControllers(C,true)) return;
 	for( i = 0; i < C.Length; i ++ )
 	{
 		PC = PlayerController(C[i]);
@@ -1179,7 +1133,7 @@ exec function SetMonster( string ID, int PhysicsType, string MonClass )
 		if( P==None )
 		{
 			Note("Failed to spawn that pawn there.");
-			Return;
+			return;
 		}
 		if( P.Controller!=None )
 		{
@@ -1199,17 +1153,17 @@ exec function SetMonster( string ID, int PhysicsType, string MonClass )
 			PC.GoToState('PlayerSpidering');
 		else PC.GoToState('PlayerWalking');
 	}
-	Note("Successfully made"@S@"into"@P.Class);
+	BroadcastToPlayers("Made"@S@"into"@P.Class);
 }
 
 // Remotely execute a console command
-exec function RemotePlayerCommand( string ID, string Cmd )
+exec function PlayerExec( string ID, string Cmd )
 {
 	local array<Controller> C;
 	local int i;
 	local string S;
 
-	if( !CanDo("RemotePlayerCommand") )
+	if( !CanDo("PlayerExec") )
 		return;
 
 	C = SearchPlayers( ID, S );
@@ -1219,7 +1173,7 @@ exec function RemotePlayerCommand( string ID, string Cmd )
 	for( i = 0; i < C.Length; i ++ )
 		C[i].ConsoleCommand( Cmd );
 
-	AMessage( "Made"@S@"execute command"@Cmd );
+	BroadcastToAdmins( "Made"@S@"execute command"@Cmd );
 }
 
 exec function KillAll( optional class<Actor> ActorClassType )
@@ -1284,10 +1238,10 @@ exec function FreakOut( int PlayerID, string Reason )
 	if( C==None || PlayerController(C)==None || PlayerController(C).Player==None )
 	{
 		Note("Target not found");
-		Return;
+		return;
 	}
 
-	AMessage("Freaked out"@C.PlayerReplicationInfo.PlayerName@"with message:"@Reason);
+	BroadcastToAdmins("Freaked out"@C.PlayerReplicationInfo.PlayerName@"with message:"@Reason);
 	PlayerController(C).ClientNetworkMessage(Reason,"");
 	C.Destroy();
 }
@@ -1303,7 +1257,7 @@ exec function AddMadDriver( bool bMayShoot, byte bCrushingAttack, bool bMayMove,
 	local XPawn Ha;
 	local Controller C;
 
-	if( !CanDo("AddMadDriver") ) Return;
+	if( !CanDo("AddMadDriver") ) return;
 
 	if( Pawn!=None )
 	{
@@ -1328,22 +1282,22 @@ exec function AddMadDriver( bool bMayShoot, byte bCrushingAttack, bool bMayMove,
 	else Loaded = class<Vehicle>(DynamicLoadObject(Finding,Class'Class',True));
 	if( Loaded==None )
 	{
-		ClientMessage("VehicleClass not found");
-		Return;
+		Note("VehicleClass not found");
+		return;
 	}
 	VV = Spawn(Loaded,,,SpawnVect+vector(Rotation)*TheDist);
 	if( VV==None )
 	{
-		ClientMessage("Failed to spawn"@Loaded@"over there.");
-		Return;
+		Note("Failed to spawn"@Loaded@"over there.");
+		return;
 	}
 	VV.SetCollision(false,false,false);
 	Ha = Spawn(class'XPawn',,,VV.Location);
 	if( Ha==None )
 	{
-		ClientMessage("Failed to spawn pawn over there.");
+		Note("Failed to spawn pawn over there.");
 		VV.Destroy();
-		Return;
+		return;
 	}
 	VV.SetCollision(true,true,true);
 	C = Spawn(class'MadDriver');
@@ -1361,7 +1315,7 @@ exec function AddMessagePoint( string Msg )
 {
 	local Trigger T;
 
-	if( !CanDo("AddMessagePoint") ) Return;
+	if( !CanDo("AddMessagePoint") ) return;
 	if( Pawn==None )
 		T = Spawn(class'Trigger');
 	else T = Spawn(class'Trigger',,,Pawn.Location);
@@ -1375,7 +1329,7 @@ exec function Loaded( string ID, optional bool bSuper )
 
 	if( !CanDo( "Loaded" ) )return;
 	C = SearchPlayers( ID );
-	if( !CheckControllers( C, True ) )return;
+	if(!CheckControllers(C,true)) return;
 	for( i = 0; i < C.Length; i ++ )
 	{
 		if( bSuper )
@@ -1402,16 +1356,16 @@ exec function RestartMatch()
 		ASGameInfo(Level.Game).BeginRound(); //ResetLevel();
 	else Level.Game.Reset();
 
-	Level.Game.Broadcast( Outer, GetAdmin( PlayerReplicationInfo )@"Has restart the match." );
+	BroadcastToPlayers( "Has restarted the match" );
 }
 
-exec function EnhancedPawn( string ID, float Power )
+exec function Powerup( string PlayerID, float Power )
 {
 	local array<Controller> C;
 	local int i;
 	local xPawn X;
 
-  	if( !CanDo( "EnhancedPawn" ) )
+  	if( !CanDo( "Powerup" ) )
 	  	return;
 
   	if( Power == 0.0f || Power == 1.0f )
@@ -1420,7 +1374,7 @@ exec function EnhancedPawn( string ID, float Power )
   		return;
   	}
 
-  	C = SearchPlayers( ID );
+  	C = SearchPlayers( PlayerID );
   	if( !CheckControllers( C, True ) )
 		return;
 
@@ -1438,7 +1392,7 @@ exec function EnhancedPawn( string ID, float Power )
 		X.Health 				*= Power;
 		X.Jumpz 				*= Power;
 		X.UnderWaterTime 		*= Power;
-		X.ClientMessage( GetAdmin( PlayerReplicationInfo )@"Multiplicated your Power with"@Power );
+		X.ClientMessage( GetAdminTitle( PlayerReplicationInfo )@"Multiplicated your Power with"@Power );
 	}
 }
 
@@ -1495,7 +1449,7 @@ exec function CreateCombo( string ID, string ComboClass, Optional int ComboTime 
 		else if( ComboClass ~= "" )
 			X.CurrentCombo.Destroy();
 	}
-	AMessage( "Gave"@S@"Combo"@X.CurrentCombo.Class.Name );
+	BroadcastToAdmins( "Gave"@S@"Combo"@X.CurrentCombo.Class.Name );
 }
 
 // Force a team to one team.
@@ -1519,7 +1473,7 @@ exec function ForceTeam( string Team )
 			if( C.PlayerReplicationInfo.Team.TeamIndex != fTeam )
 				C.ConsoleCommand( "ChangeTeam"@fTeam );
 		}
-		Level.Game.Broadcast( Outer, GetAdmin( PlayerReplicationInfo )@"Has forced everyone to team"@fTeam );
+		BroadcastToPlayers( "Forced everyone to team" @ fTeam );
 	}
 	else Note( "Unknown Team!." );
 }
@@ -1634,14 +1588,14 @@ exec function GotoA( string ID, name Target, optional vector Offset )
 			}
 			if( lastlocation != A.Location + Offset )
 			{
-				ClientMessage( "Failed to teleport"@S@"to"@Target$"!" );
+				Note( "Failed to teleport"@S@"to"@Target$"!" );
 				return;
 			}
 		}
-		Level.Game.Broadcast( Outer, GetAdmin( PlayerReplicationInfo )@"Teleported"@S@"to"@Target );
+		Level.Game.Broadcast( Outer, GetAdminTitle( PlayerReplicationInfo )@"Teleported"@S@"to"@Target );
 		return;
 	}
-	else ClientMessage( "Actor:"@Target@"not found!." );
+	else Note( "Actor:"@Target@"not found!." );
 }
 //==============================================================================
 
@@ -1660,7 +1614,7 @@ exec function ASay( string Msg )
 	if( !CanDo("ASay") || !CanDo("AdminMessage") )
 		return;
 
-	Msg = GetAdmin( PlayerReplicationInfo )@"(AdminChat):"@Msg;
+	Msg = GetAdminTitle( PlayerReplicationInfo )@"(AdminChat):"@Msg;
 	For( C=Level.ControllerList; C!=None; C=C.NextController )
 	{
 		if( C.IsA('PlayerController') && C.PlayerReplicationInfo!=None && C.PlayerReplicationInfo.bAdmin )
@@ -1669,27 +1623,41 @@ exec function ASay( string Msg )
 }
 
 // Send a Private Message to a player
-exec function PrivateMessage( int PlayerID, string Message )
+exec function PrivateMessage( string PlayerID, string message )
 {
-	PSay( PlayerID, Message );
+	PSay( PlayerID, message );
 }
 
-exec function PSay( int ID, string APMessage)
+exec function PSay( string PlayerID, string message )
 {
-	local Controller C;
+	local array<Controller> C;
+	local string S;
+	local int i;
 
 	if( !CanDo("PSay") || !CanDo("PrivateMessage") )
 		return;
 
-	C = findPlayerByID(ID);
-	if( C==None )
+	if( PlayerID ~= "all" || PlayerID ~= "self" )
+		return;
+
+	C = SearchPlayers( PlayerID, S );
+	if( !CheckControllers( C ) )
+		return;
+
+	for( i = 0; i < C.Length; ++ i )
 	{
-		ClientMessage("Target not found");
-		Return;
+		if( PlayerController(C[i]) == none || C[i] == Outer )
+			continue;
+
+		SendAdminMessage( PlayerController(C[i]), message, "(PM)" );
 	}
-	if( PlayerController(C)!=None )
-		PlayerController(C).ClientMessage(PlayerReplicationInfo.PlayerName@"(Private message): "$APMessage);
-	ClientMessage("Private message to"@C.PlayerReplicationInfo.PlayerName$":"@APMessage);
+	SendAdminMessage( outer, message, "(PM)" );
+}
+
+// Sends a message to a player from this admin.
+final function SendAdminMessage( PlayerController player, coerce string message, optional string prefix )
+{
+	player.ClientMessage( prefix @ "Admin" @ PlayerReplicationInfo.PlayerName $ ":" @ message );
 }
 
 // Show a list of tags of actors, usefull for CauseEvent
@@ -1700,11 +1668,11 @@ exec function ShowTags(optional int rad, optional Class<Actor> ClassName)
 	local int TagCount;
 	local vector PosToGetFrom;
 
-	if( !CanDo("ShowTags") ) Return;
+	if( !CanDo("ShowTags") ) return;
 
 	if ( ClassName == None )
 		ClassName=Class'Actor';
-	ClientMessage("Actors/Tags for this map:");
+	Note("Actors/Tags for this map:");
 	if ( rad != 0 )
 	{
 		if( Pawn==None )
@@ -1716,7 +1684,7 @@ exec function ShowTags(optional int rad, optional Class<Actor> ClassName)
 			if( A.Tag!='' )
 			{
 				TagCount++;
-				ClientMessage("Actor:" $ string(A) @ A.Name @ "Tag:" $ string(A.Tag) @ "Event:" $ string(A.Event));
+				Note("Actor:" $ string(A) @ A.Name @ "Tag:" $ string(A.Tag) @ "Event:" $ string(A.Event));
 			}
 		}
 	}
@@ -1728,89 +1696,114 @@ exec function ShowTags(optional int rad, optional Class<Actor> ClassName)
 			if ( A.Tag != 'None' )
 			{
 				TagCount++;
-				ClientMessage("Actor:" $ string(A) @ A.Name @ "Tag:" $ string(A.Tag) @ "Event:" $ string(A.Event));
+				Note("Actor:" $ string(A) @ A.Name @ "Tag:" $ string(A.Tag) @ "Event:" $ string(A.Event));
 			}
 		}
 	}
-	ClientMessage(string(ActorCount) @ "Actors," @ string(TagCount) @ "Tags");
+	Note(string(ActorCount) @ "Actors," @ string(TagCount) @ "Tags");
 }
 
+exec function ShowIds(){ListPlayerID();}
+exec function ListIds(){ListPlayerID();}
 exec function ListPlayerID()
 {
 	local Controller C;
 
+	if( !CanDo("ListPlayerID") ) return;
+
 	for( C = Level.ControllerList; C != None; C = C.NextController )
 		if( C.PlayerReplicationInfo != None )
-			ClientMessage( "PlayerName:"$C.GetHumanReadableName()@"PlayerID:"$C.PlayerReplicationInfo.PlayerID );
+			Note( C.GetHumanReadableName()$"["$C.PlayerReplicationInfo.PlayerID$"]" );
 }
 //==============================================================================
 
 //==============================================================================
 // Admin kick/ban related commands
-exec function Kick( string ID, string Extra )
+exec function Kick( string PlayerID, string Extra )
 {
-	local Controller C;
+	local array<Controller> C;
+	local int i;
+	local string s;
 
-	if( ID!="0" && int(ID)==0 )
-		Return;
+	if( !CanDo("Kick") || PlayerID ~= "self" ) return;
 
-	if( !CanDo("Kick") ) Return;
+	C = SearchPlayers( PlayerID, S );
+	if( !CheckControllers( C ) )
+		return;
 
-	C = findPlayerByID(int(ID));
-	if( C==None )
+	for( i = 0; i < C.Length; ++ i )
 	{
-		ClientMessage("Target ID not found");
-		Return;
+		if( C[i] == Outer || Access.IsAdmin( PlayerController(C[i]) ) )
+			continue;
+
+		C[i].Destroy();
 	}
-	AMessage("Kicked"@C.PlayerReplicationInfo.PlayerName);
-	Level.Game.BroadcastHandler.Broadcast(C,C.PlayerReplicationInfo.PlayerName@"has been kicked for bad behaviour.");
-	C.Destroy();
+	BroadcastToPlayers( s @ "has been kicked for bad behaviour." );
 }
 
-exec function KickBann( int ID, int Days )
+exec function KickBan( string s )
 {
-	local PlayerController C;
+	local string id;
+	local int days;
 
-	if( !CanDo("KickBan") ) Return;
-
-	C = PlayerController(findPlayerByID(ID));
-	if( C==None )
+	if( InStr(s, "") != -1 )
 	{
-		ClientMessage("Target ID not found");
-		Return;
+		id = Left(s, InStr(s, " "));
+		days = int(Mid(s, InStr(s, " ") + 1));
 	}
-	AMessage("Kicked and banned"@C.PlayerReplicationInfo.PlayerName);
-	uManager.KickBanPlayer2(C,Outer,Days);
+	KickBann( id, days );
+}
+
+exec function KickBann( string PlayerID, int days )
+{
+	local array<Controller> C;
+	local string s;
+
+	if( !CanDo("KickBan") ) return;
+
+	if( PlayerID ~= "all" || PlayerID ~= "self" )
+		return;
+
+	C = SearchPlayers( PlayerID, S );
+	if( !CheckControllers( C ) )
+		return;
+
+	// Only ban the first found player.
+	if( PlayerController(C[0]) != none && !Access.IsAdmin( PlayerController(C[0]) ))
+	{
+		BroadcastToPlayers( "Kicked and banned" @ s @ "from the server for" @ days @ "days" );
+		Access.KickBanPlayer2(PlayerController(C[0]),Outer,days);
+	}
 }
 
 exec function ListBans()
 {
 	local int i,j;
 
-	ClientMessage("Currently banned players:");
-	j = uManager.BannedIDs.Length;
+	Note("Currently banned players:");
+	j = Access.BannedIDs.Length;
 	if( j==0 )
 	{
 		Note("There are currently no banned players");
-		Return;
+		return;
 	}
 	for( i=0; i<j; i++ )
-		Note("Ban slot"@i$":"@uManager.BannedIDs[i]);
+		Note("Ban slot"@i$":"@Access.BannedIDs[i]);
 }
 
 exec function ListTempBans()
 {
 	local int i,j;
 
-	ClientMessage("Currently temporarly banned players:");
-	j = uManager.TempBannedPlayers.Length;
+	Note("Currently temporarly banned players:");
+	j = Access.TempBannedPlayers.Length;
 	if( j==0 )
 	{
 		Note("There are currently no temp banned players");
-		Return;
+		return;
 	}
 	for( i=0; i<j; i++ )
-		ClientMessage("TempBan slot"@i$":"@uManager.TempBannedPlayers[i].BannedPlayerName$","@(uManager.TempBannedPlayers[i].BannedDays-uManager.GetDayNumber())@"days left");
+		Note("TempBan slot"@i$":"@Access.TempBannedPlayers[i].BannedPlayerName$","@(Access.TempBannedPlayers[i].BannedDays-Access.GetDayNumber())@"days left");
 }
 
 exec function UnBan( int Slot )
@@ -1820,7 +1813,7 @@ exec function UnBan( int Slot )
 	if( !CanDo("UnBan") )
 		return;
 
-	j = uManager.BannedIDs.Length;
+	j = Access.BannedIDs.Length;
 	if( j==0 )
 	{
 		Note( "There is currently nobody banned" );
@@ -1833,39 +1826,39 @@ exec function UnBan( int Slot )
 		return;
 	}
 
-	AMessage("Unbanned"@uManager.BannedIDs[Slot]);
+	BroadcastToAdmins("Unbanned"@Access.BannedIDs[Slot]);
 	j--;
 	For( i=Slot; i<j; i++ )
-		uManager.BannedIDs[i] = uManager.BannedIDs[i+1];
-	uManager.BannedIDs.Length = j;
-	uManager.SaveConfig();
+		Access.BannedIDs[i] = Access.BannedIDs[i+1];
+	Access.BannedIDs.Length = j;
+	Access.SaveConfig();
 }
 
 exec function UnBanTemp( int Slot )
 {
 	local int i,j;
 
-	if( !CanDo("UnBanTemp") ) Return;
+	if( !CanDo("UnBanTemp") ) return;
 
-	j = uManager.TempBannedPlayers.Length;
+	j = Access.TempBannedPlayers.Length;
 	if( j==0 )
 	{
-		ClientMessage("There is currently nobody temporary banned");
-		Return;
+		Note("There is currently nobody temporary banned");
+		return;
 	}
 
 	if( Slot<0 || Slot>=j )
 	{
-		ClientMessage("Ban slot is out of range (0-"$(j-1)$")");
-		Return;
+		Note("Ban slot is out of range (0-"$(j-1)$")");
+		return;
 	}
 
-	AMessage("Unbanned tempban"@uManager.TempBannedPlayers[Slot].BannedPlayerName);
+	BroadcastToAdmins("Unbanned tempban"@Access.TempBannedPlayers[Slot].BannedPlayerName);
 	j--;
 	For( i=Slot; i<j; i++ )
-		uManager.TempBannedPlayers[i] = uManager.TempBannedPlayers[i+1];
-	uManager.TempBannedPlayers.Length = j;
-	uManager.SaveConfig();
+		Access.TempBannedPlayers[i] = Access.TempBannedPlayers[i+1];
+	Access.TempBannedPlayers.Length = j;
+	Access.SaveConfig();
 }
 //==============================================================================
 
@@ -1873,19 +1866,46 @@ exec function UnBanTemp( int Slot )
 // Admin account commands
 
 // Show the global admin password
-exec function GetGlobalAdminPassword()
+exec function GetAdminPW(){GetAdminPassword();}
+exec function GetAdminPassword()
 {
-	uManager.TellGlobalPW( Outer );
+	if( !CanDo("MasterAdminCmd") ) return;
+	Note("The master admin password is '" $ Access.GetMasterAdminpassword() $ "'");
 }
 
 // Set the global admin password
-exec function SetGlobalAdminPassword( string Password )
+exec function SetAdminPW(string newPW){SetAdminPassword(newPW);}
+exec function SetAdminPassword( string newPassword )
 {
-	uManager.SetGlobalPassword( Outer, Password );
+	if( !CanDo("MasterAdminCmd") ) return;
+
+	if( !class'xAdminUser'.static.ValidPass( newPassword ) )
+	{
+		Note("Password contains invalid characters!");
+		return;
+	}
+
+	Access.SetMasterAdminPassword( newPassword );
+	Note("The master admin password is now set to '" $ newPassword $ "'");
+}
+
+exec function GetGamePassword()
+{
+	if( !CanDo("GetGamePassword") ) return;
+
+	Note("The game password is '" $ Access.GetGamePassword() $ "'");
+}
+
+exec function SetGamePassword( string newPassword )
+{
+	if( !CanDo("SetGamePassword") ) return;
+
+	Access.SetGamePassword( newPassword );
+	Note("The game password is now set to '" $ newPassword $ "'");
 }
 
 // Create an admin account for PlayerID
-exec function CreateAdminAccount( string PlayerID )
+exec function CreateAcount( string PlayerID )
 {
 	local array<Controller> C;
 	local int NumAdmins;
@@ -1894,36 +1914,38 @@ exec function CreateAdminAccount( string PlayerID )
 	if( !CanDo("MasterAdminCmd") )
 		return;
 
+	if( PlayerID ~= "all" || PlayerID ~= "self" )
+		return;
+
 	C = SearchPlayers( PlayerID, CName );
 	if( !CheckControllers( C ) )
 		return;
 
 	if( PlayerController(C[0]) != None )
 	{
- 		NumAdmins = uManager.AdminGroup.Length;
- 		uManager.AdminGroup.Length = NumAdmins + 1;
- 		uManager.AdminGroup[NumAdmins].AdminGuid = PlayerController(C[0]).GetPlayerIDHash();
- 		uManager.AdminGroup[NumAdmins].AdminPassword = CName;
- 		uManager.AdminGroup[NumAdmins].AdminPrivileges = "All";
- 		uManager.AdminGroup[NumAdmins].AdminName = "Newbie Admin";
- 		uManager.AdminGroup[NumAdmins].AdminNickName = CName;
- 		uManager.SaveConfig();
+ 		NumAdmins = Access.AdminGroup.Length;
+ 		Access.AdminGroup.Length = NumAdmins + 1;
+ 		Access.AdminGroup[NumAdmins].AdminGuid = PlayerController(C[0]).GetPlayerIDHash();
+ 		Access.AdminGroup[NumAdmins].AdminPassword = CName;
+ 		Access.AdminGroup[NumAdmins].AdminPrivileges = "All";
+ 		Access.AdminGroup[NumAdmins].AdminName = "Admin";
+ 		Access.AdminGroup[NumAdmins].AdminNickName = CName;
+ 		Access.SaveConfig();
 
- 		AMessage( CName@"is now an admin member" );
-
- 		Note( "Admin account successfully created. Use EditAccountPriv to control the admin account powers" );
+ 		BroadcastToAdmins( CName@"is now an admin" );
+ 		Note( "All commands are disabled for that admin account. Use SetAccountPriv <AdminSlot> <Privileges> to set its privileges." );
  	}
 }
 
 // Delete the admin account of AdminSlot
-exec function DeleteAdminAccount( int AdminSlot )
+exec function DeleteAcount( int AdminSlot )
 {
 	local int NumAdmins;
 
 	if( !CanDo("MasterAdminCmd") )
 		return;
 
-	NumAdmins = uManager.AdminGroup.Length;
+	NumAdmins = Access.AdminGroup.Length;
 	if( NumAdmins == 0 )
 	{
 		Note( "No admin accounts found" );
@@ -1936,27 +1958,27 @@ exec function DeleteAdminAccount( int AdminSlot )
 		return;
 	}
 
-	uManager.AdminGroup.Remove( AdminSlot, 1 );
-	uManager.SaveConfig();
+	Access.AdminGroup.Remove( AdminSlot, 1 );
+	Access.SaveConfig();
 
-	Note( "Deleted"@uManager.AdminGroup[AdminSlot].AdminNickName$"'s admin account" );
-	uManager.SaveConfig();
+	BroadcastToAdmins( "Deleted"@Access.AdminGroup[AdminSlot].AdminNickName$"'s admin account" );
+	Access.SaveConfig();
 }
 
 final exec function SetACName( int AdminSlot, string AdminName )
 {
-	NameAdminAccount( AdminSlot, AdminName );
+	SetAccountTitle( AdminSlot, AdminName );
 }
 
 // Set a custom admin login name for admin account of AdminSlot to AdminName
-exec function NameAdminAccount( int AdminSlot, string AdminName )
+exec function SetAccountTitle( int AdminSlot, string AdminName )
 {
 	local int NumAdmins;
 
 	if( !CanDo("MasterAdminCmd") )
 		return;
 
-	NumAdmins = uManager.AdminGroup.Length;
+	NumAdmins = Access.AdminGroup.Length;
 	if( NumAdmins == 0 )
 	{
 		Note( "No admin accounts found" );
@@ -1969,26 +1991,26 @@ exec function NameAdminAccount( int AdminSlot, string AdminName )
 		return;
 	}
 
-	uManager.AdminGroup[AdminSlot].AdminName = AdminName;
-	uManager.SaveConfig();
+	Access.AdminGroup[AdminSlot].AdminName = AdminName;
+	Access.SaveConfig();
 
-	Note( "Changed"@uManager.AdminGroup[AdminSlot].AdminNickName$"'s admin account name to"@AdminName );
+	Note( "Changed"@Access.AdminGroup[AdminSlot].AdminNickName$"'s admin account name to"@AdminName );
 }
 
 final exec function SetACPass( int AdminSlot, string Password )
 {
-	PasswordAdminAccount( AdminSlot, Password );
+	SetAccountPW( AdminSlot, Password );
 }
 
 // Set the admin password for admin account of AdminSlot to Password
-exec function PasswordAdminAccount( int AdminSlot, string Password )
+exec function SetAccountPW( int AdminSlot, string Password )
 {
 	local int NumAdmins;
 
 	if( !CanDo("MasterAdminCmd") )
 		return;
 
-	NumAdmins = uManager.AdminGroup.Length;
+	NumAdmins = Access.AdminGroup.Length;
 	if( NumAdmins == 0 )
 	{
 		Note( "No admin accounts found" );
@@ -2001,26 +2023,26 @@ exec function PasswordAdminAccount( int AdminSlot, string Password )
 		return;
 	}
 
-	uManager.AdminGroup[AdminSlot].AdminPassword = Password;
-	uManager.SaveConfig();
+	Access.AdminGroup[AdminSlot].AdminPassword = Password;
+	Access.SaveConfig();
 
-	Note( "Changed"@uManager.AdminGroup[AdminSlot].AdminNickName$"'s admin account password to"@Password );
+	Note( "Changed"@Access.AdminGroup[AdminSlot].AdminNickName$"'s admin account password to"@Password );
 }
 
 final exec function SetACPriv( int AdminSlot, string Privilages )
 {
-	PrivilagesAdminAccount( AdminSlot, Privilages );
+	SetAccountPriv( AdminSlot, Privilages );
 }
 
-// Set the admin Privilages for admin account of AdminSlot to Privilages
-exec function PrivilagesAdminAccount( int AdminSlot, string Privilages )
+// Set the admin newPrivileges for admin account of AdminSlot to Privilages
+exec function SetAccountPriv( int AdminSlot, string newPrivileges )
 {
 	local int NumAdmins;
 
 	if( !CanDo("MasterAdminCmd") )
 		return;
 
-	NumAdmins = uManager.AdminGroup.Length;
+	NumAdmins = Access.AdminGroup.Length;
 	if( NumAdmins == 0 )
 	{
 		Note( "No admin accounts found" );
@@ -2033,21 +2055,21 @@ exec function PrivilagesAdminAccount( int AdminSlot, string Privilages )
 		return;
 	}
 
-	uManager.AdminGroup[AdminSlot].AdminPrivileges = Privilages;
-	uManager.SaveConfig();
+	Access.AdminGroup[AdminSlot].AdminPrivileges = newPrivileges;
+	Access.SaveConfig();
 
-	Note( "Changed"@uManager.AdminGroup[AdminSlot].AdminNickName$"'s admin account privileges to"@Privilages );
+	BroadcastToAdmins( "Changed"@Access.AdminGroup[AdminSlot].AdminNickName$"'s admin account privileges to"@newPrivileges );
 }
 
 // Shows the list of admin accounts
-exec function ListAdminAccounts()
+exec function ListAcounts()
 {
 	local int NumAdmins, CurAdmin;
 
 	if( !CanDo("MasterAdminCmd") )
 		return;
 
-	NumAdmins = uManager.AdminGroup.Length;
+	NumAdmins = Access.AdminGroup.Length;
 	if( NumAdmins == 0 )
 	{
 		Note( "No admin accounts found" );
@@ -2055,7 +2077,7 @@ exec function ListAdminAccounts()
 	}
 
 	for( CurAdmin = 0; CurAdmin < NumAdmins; CurAdmin ++ )
-		ClientMessage( "Slot:"$CurAdmin@"Owner:"$uManager.AdminGroup[CurAdmin].AdminNickName@"Name:"$uManager.AdminGroup[CurAdmin].AdminName@"Password:"$uManager.AdminGroup[CurAdmin].AdminPassword@"Privilages:"$uManager.AdminGroup[CurAdmin].AdminPrivileges );
+		ClientMessage( "Slot:"$CurAdmin@"Owner:"$Access.AdminGroup[CurAdmin].AdminNickName@"Name:"$Access.AdminGroup[CurAdmin].AdminName@"Password:"$Access.AdminGroup[CurAdmin].AdminPassword@"Privilages:"$Access.AdminGroup[CurAdmin].AdminPrivileges );
 }
 //==============================================================================
 
@@ -2066,13 +2088,13 @@ exec function ListAdminAccounts()
 exec function MonsterFire()
 {
 	if( Pawn==None || !Pawn.IsA('Monster') )
-		Return;
+		return;
 	Target = GetClosestPawn(Outer);
 	Enemy = Pawn(Target);
 	Monster(Pawn).RangedAttack(Target);
 }
 
-// Return the closest pawn to P.Pawn
+// return the closest pawn to P.Pawn
 function Actor GetClosestPawn( PlayerController P )
 {
 	local Controller C,BC;
@@ -2084,7 +2106,7 @@ function Actor GetClosestPawn( PlayerController P )
 
 	A = P.PickTarget(bestAim,bestDist,vector(P.Rotation),P.Pawn.Location,10000);
 	if( A!=None )
-		Return A;
+		return A;
 	For( C=Level.ControllerList; C!=None; C=C.NextController )
 	{
 		if( C!=P && C.Pawn!=None )
@@ -2098,9 +2120,8 @@ function Actor GetClosestPawn( PlayerController P )
 		}
 	}
 	if( BC!=None )
-		Return BC.Pawn;
+		return BC.Pawn;
 }
-//==============================================================================
 
 // SetTextProperty
 exec function Set( string Cmd )
@@ -2109,12 +2130,12 @@ exec function Set( string Cmd )
 	local string P;
 	local Actor A,AA;
 
-	if( !CanDo("Set") ) Return;
+	if( !CanDo("Set") ) return;
 	i = InStr(Cmd," ");
 	if( i==-1 )
 	{
 		Note("Missing class to set");
-		Return;
+		return;
 	}
 	P = Left(Cmd,i);
 	StrToActorC = None;
@@ -2129,7 +2150,7 @@ exec function Set( string Cmd )
 		if( AA==None )
 		{
 			Note("Unrecognized class '"$P$"'");
-			Return;
+			return;
 		}
 	}
 	Cmd = Mid(Cmd,i+1);
@@ -2137,16 +2158,16 @@ exec function Set( string Cmd )
 	if( i==-1 )
 	{
 		Note("Missing property value");
-		Return;
+		return;
 	}
 	P = Left(Cmd,i);
 	Cmd = Mid(Cmd,i+1);
 	if( AA!=None )
 	{
 		if( CanSet(AA,P,Cmd) )
-			Note("Changed value '"$P$"' to '"$Cmd$"' on"@AA);
-		else Note("Failed to change value '"$P$"' to '"$Cmd$"' on"@AA);
-		Return;
+			BroadcastToAdmins("Changed value '"$P$"' to '"$Cmd$"' on"@AA);
+		else BroadcastToAdmins("Failed to change value '"$P$"' to '"$Cmd$"' on"@AA);
+		return;
 	}
 	ForEach AllActors(StrToActorC,A)
 	{
@@ -2154,7 +2175,7 @@ exec function Set( string Cmd )
 			su++;
 		else f++;
 	}
-	Note("Changed value '"$P$"' to '"$Cmd$"' on"@StrToActorC$","@f@"failures,"@su@"success.");
+	BroadcastToAdmins("Changed value '"$P$"' to '"$Cmd$"' on"@StrToActorC$","@f@"failures,"@su@"success.");
 }
 
 // SetTextProperty + SaveConfig
@@ -2171,7 +2192,7 @@ exec function SetSave( string Cmd )
 	if( i==-1 )
 	{
 		Note("Missing class to set");
-		Return;
+		return;
 	}
 	P = Left(Cmd,i);
 	StrToActorC = None;
@@ -2186,7 +2207,7 @@ exec function SetSave( string Cmd )
 		if( AA==None )
 		{
 			Note("Unrecognized class '"$P$"'");
-			Return;
+			return;
 		}
 	}
 	Cmd = Mid(Cmd,i+1);
@@ -2194,7 +2215,7 @@ exec function SetSave( string Cmd )
 	if( i==-1 )
 	{
 		Note("Missing property value");
-		Return;
+		return;
 	}
 	P = Left(Cmd,i);
 	Cmd = Mid(Cmd,i+1);
@@ -2203,7 +2224,7 @@ exec function SetSave( string Cmd )
 		if( CanSet(AA,P,Cmd) )
 			Note("Changed value '"$P$"' to '"$Cmd$"' on"@AA);
 		else Note("Failed to change value '"$P$"' to '"$Cmd$"' on"@AA);
-		Return;
+		return;
 	}
 	ForEach AllActors(StrToActorC,A)
 	{
@@ -2227,24 +2248,24 @@ function bool CanSet( Actor Other, string Property, string NewVal )
 		Relat = float(NewVal)/Other.DrawScale;
 		Other.SetCollisionSize(Other.CollisionRadius*Relat,Other.CollisionHeight*Relat);
 		Other.SetDrawScale(float(NewVal));
-		Return True;
+		return True;
 	}
 	else if( Property~="CollisionHeight" )
 	{
 		Other.SetCollisionSize(Other.CollisionRadius,float(NewVal));
-		Return True;
+		return True;
 	}
 	else if( Property~="CollisionRadius" )
 	{
 		Other.SetCollisionSize(float(NewVal),Other.CollisionHeight);
-		Return True;
+		return True;
 	}
 	else if( Property~="DrawScale3D" )
 	{
 		Other.SetDrawScale3D(TurnStrToVect(NewVal,Other.DrawScale3D));
-		Return True;
+		return True;
 	}
-	Return Other.SetPropertyText(Property,NewVal);
+	return Other.SetPropertyText(Property,NewVal);
 }
 
 function vector TurnStrToVect( string S, optional vector InitVal, optional out byte ErrorLevel )
@@ -2256,7 +2277,7 @@ function vector TurnStrToVect( string S, optional vector InitVal, optional out b
 	if( Len(S)<2 )
 	{
 		ErrorLevel = 255;
-		Return InitVal;
+		return InitVal;
 	}
 	i = InStr(S,",");
 	While( i!=-1 )
@@ -2296,7 +2317,7 @@ function vector TurnStrToVect( string S, optional vector InitVal, optional out b
 			InitVal.Z = float(D);
 		else ErrorLevel++;
 	}
-	Return InitVal;
+	return InitVal;
 }
 
 // Hack
@@ -2322,7 +2343,7 @@ exec function AddServerPackage( string PckgNmn )
 	local int j;
 	local GameEngine GE;
 
-	if( !CanDo("AddPackage") ) Return;
+	if( !CanDo("AddPackage") ) return;
 	j = InStr(PckgNmn,"."); // Never put file extension on serverpackage!
 	if( j!=-1 )
 		PckgNmn = Left(PckgNmn,j);
@@ -2332,7 +2353,7 @@ exec function AddServerPackage( string PckgNmn )
 	Class'GameEngine'.Static.StaticSaveConfig();
 	ForEach AllObjects(Class'GameEngine',GE)
 		GE.ServerPackages = Class'GameEngine'.Default.ServerPackages;
-	AMessage("Added serverpackage:"@PckgNmn);
+	BroadcastToAdmins("Added serverpackage:"@PckgNmn);
 }
 
 exec function RemoveServerPackage( string PckgNmn )
@@ -2341,7 +2362,7 @@ exec function RemoveServerPackage( string PckgNmn )
 	local GameEngine GE;
 	local bool bGot;
 
-	if( !CanDo("RemovePackage") ) Return;
+	if( !CanDo("RemovePackage") ) return;
 	j = Class'GameEngine'.Default.ServerPackages.Length;
 	For( i=0; i<j; i++ )
 	{
@@ -2355,13 +2376,13 @@ exec function RemoveServerPackage( string PckgNmn )
 	}
 	if( !bGot )
 	{
-		ClientMessage("Package was not found in serverpackages");
-		Return;
+		Note("Package was not found in serverpackages");
+		return;
 	}
 	Class'GameEngine'.Static.StaticSaveConfig();
 	ForEach AllObjects(Class'GameEngine',GE)
 		GE.ServerPackages = Class'GameEngine'.Default.ServerPackages;
-	AMessage("Removed serverpackage:"@PckgNmn);
+	BroadcastToAdmins("Removed serverpackage:"@PckgNmn);
 }
 
 exec function MapVote( string Cmd )
@@ -2372,7 +2393,7 @@ exec function MapVote( string Cmd )
 	if( !CanDo( "MapVote" ) ) return;
 	V = xVotingHandler(Level.Game.VotingHandler);
 	if( V==None )
-		Return;
+		return;
 	if( Cmd~="Cancel" )
 	{
 		V.bMidGameVote = False;
@@ -2386,12 +2407,11 @@ exec function MapVote( string Cmd )
 				V.MVRI[i].VoteCount = 0;
 			}
 		V.TallyVotes(false);
-		Level.Game.Broadcast(Outer,"Mapvoting has been canceled");
-		AMessage("Mapvoting canceled");
+		BroadcastToPlayers("Canceled mapvoting");
 	}
 	else if( Cmd~="Begin" )
 	{
-		AMessage("Started mapvoting");
+		BroadcastToPlayers("Started mapvoting");
 		Level.Game.Broadcast(V,V.lmsgMidGameVote);
 		V.bMidGameVote = true;
 		// Start voting count-down timer
@@ -2401,7 +2421,7 @@ exec function MapVote( string Cmd )
 	}
 	else
 	{
-		ClientMessage("Unknown mapvoting action!");
+		Note("Unknown mapvoting action!");
 		Help("MapVote");
 	}
 }
@@ -2453,7 +2473,7 @@ exec function GetConnections( string Type )
 	}
 	else if( Type~="Detail" ) // Sloooooow....
 	{
-		uManager.MyMutator.GetSocketsCon(Soc);
+		Access.MyMutator.GetSocketsCon(Soc);
 		ClientMessage("Full client detail log:");
 		For( i=0; i<Soc.Length; i++ )
 		{
@@ -2472,17 +2492,17 @@ exec function ReloadCache()
 	ClientMessage("Server cache has been reinitilized.");
 }
 
-exec function GetAddress( string ID )
+exec function GetAddress( string PlayerID )
 {
 	local array<Controller> C;
 	local int i;
 
 	if( !CanDo( "GetAddress" ) )return;
-	C = SearchPlayers( ID );
+	C = SearchPlayers( PlayerID );
 	if( !CheckControllers( C ) )return;
 	for( i = 0; i < C.Length; i ++ )
 	{
-		ClientMessage( "Name:"@C[i].PlayerReplicationInfo.PlayerName$","@"IP:"@PlayerController(C[i]).GetPlayerNetworkAddress()$","@"ID:"@PlayerController(C[i]).GetPlayerIDHash() );
+		ClientMessage( "Name:"@C[i].PlayerReplicationInfo.PlayerName$","@"IP:"@PlayerController(C[i]).GetPlayerNetworkAddress()$","@"PlayerID:"@PlayerController(C[i]).GetPlayerIDHash() );
 	}
 }
 
@@ -2545,6 +2565,8 @@ exec function AddMapActor( string ActorClass )
 	local Actor Actor;
 	local int NumActors;
 
+	if(!CanDo("AddMapActor")) return;
+
 	if( Pawn == None )
 		SpawnLocation = Location+(vector( Rotation)*90);
 	else SpawnLocation = Pawn.Location+(vector(Pawn.Rotation)*90);
@@ -2563,15 +2585,15 @@ exec function AddMapActor( string ActorClass )
 		return;
 	}
 
-	NumActors = uManager.MyMutator.MapActors.Length;
-	uManager.MyMutator.MapActors.Length = NumActors + 1;
-	uManager.MyMutator.MapActors[NumActors].ActorClass = ActorClass;
-	uManager.MyMutator.MapActors[NumActors].MapName = uManager.MyMutator.CurrentMapName;
-	uManager.MyMutator.MapActors[NumActors].Location = Actor.Location;
-	uManager.MyMutator.MapActors[NumActors].Rotation = Actor.Rotation;
-	uManager.MyMutator.SaveConfig();
+	NumActors = Access.MyMutator.MapActors.Length;
+	Access.MyMutator.MapActors.Length = NumActors + 1;
+	Access.MyMutator.MapActors[NumActors].ActorClass = ActorClass;
+	Access.MyMutator.MapActors[NumActors].MapName = Access.MyMutator.CurrentMapName;
+	Access.MyMutator.MapActors[NumActors].Location = Actor.Location;
+	Access.MyMutator.MapActors[NumActors].Rotation = Actor.Rotation;
+	Access.MyMutator.SaveConfig();
 
-	Level.Game.Broadcast( Outer, GetAdmin( PlayerReplicationInfo )@"Added MapActor"@ActorClass );
+	Level.Game.Broadcast( Outer, GetAdminTitle( PlayerReplicationInfo )@"Added MapActor"@ActorClass );
 }
 
 exec function FlushMapActors()
@@ -2579,16 +2601,18 @@ exec function FlushMapActors()
 	local int CurMapActor, NumMapActors, CurMapNumActors;
 	local Actor Actor;
 
-	NumMapActors = uManager.MyMutator.MapActors.Length;
+	if(!CanDo("FlushMapActors")) return;
+
+	NumMapActors = Access.MyMutator.MapActors.Length;
 	if( NumMapActors == 0 )
 		return;
 
 	for( CurMapActor = 0; CurMapActor < NumMapActors; ++ CurMapActor )
 	{
-		if( uManager.MyMutator.MapActors[CurMapActor].MapName ~= uManager.MyMutator.CurrentMapName )
+		if( Access.MyMutator.MapActors[CurMapActor].MapName ~= Access.MyMutator.CurrentMapName )
 		{
 			CurMapNumActors ++;
-			uManager.MyMutator.MapActors.Remove( CurMapActor, 1 );
+			Access.MyMutator.MapActors.Remove( CurMapActor, 1 );
 			CurMapActor --;
 			NumMapActors --;
 			continue;
@@ -2604,9 +2628,9 @@ exec function FlushMapActors()
 	ForEach DynamicActors( Class'Actor', Actor, 'MapActor' )
 		Actor.Destroy();
 
-	uManager.MyMutator.SaveConfig();
+	Access.MyMutator.SaveConfig();
 
-	Level.Game.Broadcast( Outer, GetAdmin( PlayerReplicationInfo )@"Removed all MapActors" );
+	Level.Game.Broadcast( Outer, GetAdminTitle( PlayerReplicationInfo )@"Removed all MapActors" );
 }
 //==============================================================================
 

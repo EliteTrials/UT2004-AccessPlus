@@ -2,12 +2,9 @@
 // AccessPlus_Control.uc Created @ 2006
 // Coded by 'Marco' and 'Eliot van uytfanghe'
 //==============================================================================
-class AccessPlus_Control extends AccessControlIni
-	config(AccessPlus);
+class AccessPlus_Control extends APControlBase;
 
-// Structures
-
-struct sAdmins
+struct sAdminAccount
 {
 	var string
 		AdminNickName,
@@ -27,7 +24,7 @@ struct sTempBan
 		BannedDays;
 };
 
-struct sAdminPriv
+struct sActiveAdmin
 {
 	var PlayerReplicationInfo
 		Admin;
@@ -50,33 +47,32 @@ struct sLoggedClientsType
 		IP;
 };
 
-// Admins that are logged in
-var protected array<sAdminPriv> AdminPrivileges;
+var const string MasterAdminTag;
+var const Color AdminTagColor, AdminNameColor;
+
+/** List of logged in admins. FIXME: Name */
+var protected array<sActiveAdmin> 			ActiveAdmins;
+
+/** List of admin accounts. */
+var() config array<sAdminAccount> 			AdminGroup;
+
+/** List of banned players. */
+var() config array<sTempBan> 				TempBannedPlayers;
+
+var localized string LoggedInMessage, LoggedOutMessage;
+
+/**
+ * Logs of all players that have connected to this server in its lifetime.
+ * Holds all known names, IPs and GUIDs of players.
+ */
+var config array<sLoggedClientsType> 		ClientsLog;
 
 var AccessPlus MyMutator;
 
-var string
-	MasterAdminTag,
-	CoAdminTag;
-
-var const color
-	AdminTagColor,
-	AdminNameColor;
-	
-var() config array<sAdmins> 				AdminGroup;
-var() config array<sTempBan> 				TempBannedPlayers;
-var() private globalconfig string 			GlobalAdminPW;
-var() config array<sLoggedClientsType> 		ClientsLog;
-
-function PostBeginPlay()
+event PreBeginPlay()
 {
-	Super.PostBeginPlay();
+	super.PreBeginPlay();
 	CleanOutOldBans();
-}
-
-function bool IsAdmin(PlayerController P)
-{
-	return P.PlayerReplicationInfo.bAdmin;
 }
 
 function CleanOutOldBans() // Clear out old temp banned players.
@@ -97,37 +93,11 @@ function CleanOutOldBans() // Clear out old temp banned players.
 	}
 }
 
+// FIXME: Why is this overwriting.
 function bool CanPerform(PlayerController P, string Action)
 {
 	// Standard Admin actions only performed by Admin
-	return P.PlayerReplicationInfo.bAdmin;
-}
-
-final function TellGlobalPW( PlayerController Other )
-{
-	if( !MayExecute(Other,"MasterAdminCmd") ) Return;
-	Other.ClientMessage("Current GlobalAdmin password is '"$GlobalAdminPW$"'");
-}
-
-final function SetGlobalPassword( PlayerController Other, string PW )
-{
-	if( !MayExecute(Other,"MasterAdminCmd") ) Return;
-	Other.ClientMessage("Current GlobalAdmin password is now set to '"$PW$"'");
-	GlobalAdminPW = PW;
-	SaveConfig();
-}
-
-final function int GetDayNumber()
-{
-	local int Y,D;
-
-	Y = Level.Year;
-	D = Y/4;
-	Y = Y-D;
-	D*=366;
-	D+=(Y*365);
-	D+=Level.Month*30+Level.Day;
-	Return D;
+	return IsAdmin(P);
 }
 
 function KickBanPlayer2( PlayerController Banned, PlayerController Banner, optional int NumDays )
@@ -281,51 +251,23 @@ function string LogPlayer( string PlayerName, string PlayerID, string PlayerIP )
 	Return PlayerName;
 }
 
-function string StripTextFrom( string ToStrip, string From )
-{
-	local int i;
-
-	i = InStr(ToStrip,From);
-	While( i!=-1 )
-	{
-		ToStrip = Left(ToStrip,i)$Mid(ToStrip,i+1);
-		i = InStr(ToStrip,From);
-	}
-	Return ToStrip;
-}
-
-function bool NameIsThere( string PLNames, string PLName )
-{
-	local int i;
-
-	i = InStr(PLNames,",");
-	While( i!=-1 )
-	{
-		if( PLName~=Left(PLNames,i) )
-			Return True;
-		PLNames = Mid(PLNames,i+2);
-		i = InStr(PLNames,",");
-	}
-	Return (PLNames~=PLName);
-}
-
 function bool DidAdminLogin( PlayerController Other, string Password, bool bBroadcast )
 {
 	local string ID,s;
 	local int i,j,jx;
 
 	// Is Global-Admin?
-	if( Password != "" && Password ~= GlobalAdminPW )
+	if( Password != "" && Password ~= GetMasterAdminPassword() )
 	{
 		// Add this player(other) to the current logged admins list.
-		jx = AdminPrivileges.Length;
-		AdminPrivileges.Length = jx+1;
-		AdminPrivileges[jx].Admin = Other.PlayerReplicationInfo;
-		AdminPrivileges[jx].bMasterAdmin = True;
+		jx = ActiveAdmins.Length;
+		ActiveAdmins.Length = jx+1;
+		ActiveAdmins[jx].Admin = Other.PlayerReplicationInfo;
+		ActiveAdmins[jx].bMasterAdmin = True;
 
 		Other.PlayerReplicationInfo.bAdmin = True;
 		if( bBroadcast )
-			Level.Game.Broadcast( Self, GetAdminLoginMessage( Other.PlayerReplicationInfo )@"logged in as administrator." );
+			Level.Game.Broadcast( Self, GetAdminLoginMessage( Other.PlayerReplicationInfo ) );
 
 		return True;
 	}
@@ -337,97 +279,100 @@ function bool DidAdminLogin( PlayerController Other, string Password, bool bBroa
 		if( AdminGroup[i].AdminGuid==ID || (AdminGroup[i].AdminPassword!="" && AdminGroup[i].AdminPassword~=Password) )
 		{
 			// Add this player(other) to the current logged admins list.
-			jx = AdminPrivileges.Length;
-			AdminPrivileges.Length = jx+1;
-			AdminPrivileges[jx].Admin = Other.PlayerReplicationInfo;
+			jx = ActiveAdmins.Length;
+			ActiveAdmins.Length = jx+1;
+			ActiveAdmins[jx].Admin = Other.PlayerReplicationInfo;
 
 			s = AdminGroup[i].AdminPrivileges;
 			j = InStr(S,",");
 			While( j!=-1 )
 			{
-				AdminPrivileges[jx].BlockedCommands[AdminPrivileges[jx].NumBlckCmds] = Left(S,j);
-				AdminPrivileges[jx].NumBlckCmds++;
+				ActiveAdmins[jx].BlockedCommands[ActiveAdmins[jx].NumBlckCmds] = Left(S,j);
+				ActiveAdmins[jx].NumBlckCmds++;
 				S = Mid(S,j+1);
 				j = InStr(S,",");
 			}
 			if( S!="" )
 			{
-				AdminPrivileges[jx].BlockedCommands[AdminPrivileges[jx].NumBlckCmds] = S;
-				AdminPrivileges[jx].NumBlckCmds++;
+				ActiveAdmins[jx].BlockedCommands[ActiveAdmins[jx].NumBlckCmds] = S;
+				ActiveAdmins[jx].NumBlckCmds++;
 			}
 
 			Other.PlayerReplicationInfo.bAdmin = True;
 			if( bBroadcast )
-				Level.Game.Broadcast( Self, GetAdminLoginMessage( Other.PlayerReplicationInfo )@"logged in as"@AdminGroup[i].AdminName$"." );
+				Level.Game.Broadcast( Self, GetAdminLoginMessage( Other.PlayerReplicationInfo, AdminGroup[i].AdminName ) );
 
 			return True;
 		}
 	}
 }
 
-Function string GetAdminLoginMessage( PlayerReplicationInfo PRI )
+Function string GetAdminLoginMessage( PlayerReplicationInfo PRI, optional string adminName )
 {
-	local int CurAdmin, MaxAdmin;
+	local string s;
 
-	MaxAdmin = AdminPrivileges.Length;
-	for( CurAdmin = 0; CurAdmin < MaxAdmin; CurAdmin ++ )
+	if( adminName == "" )
 	{
-		if( AdminPrivileges[CurAdmin].Admin == PRI )
-		{
-			if( AdminPrivileges[CurAdmin].bMasterAdmin )
-				return MyMutator.MakeColorCode( AdminTagColor )$MasterAdminTag$MyMutator.MakeColorCode( AdminNameColor )@PRI.PlayerName;
-			else return MyMutator.MakeColorCode( AdminTagColor )$CoAdminTag$MyMutator.MakeColorCode( AdminNameColor )@PRI.PlayerName;
-		}
+		adminName = MasterAdminTag;
 	}
-	return "";
+	s = Repl(Repl(LoggedInMessage,
+			"%t", MyMutator.MakeColorCode(AdminTagColor)$adminName),
+			"%o", MyMutator.MakeColorCode(AdminNameColor)$PRI.PlayerName);
+	return  s;
 }
 
-Function string GetAdminLogoutMessage( PlayerReplicationInfo PRI )
+function AdminLoggedOut( PlayerController admin, bool beSilent )
 {
-	local int CurAdmin, MaxAdmin;
-	local string Sex;
+	if( !beSilent )
+	{
+		Level.Game.Broadcast( self, GetAdminLogoutMessage( admin.PlayerReplicationInfo ) );
+	}
+	RemoveAdminPriv( admin );
+}
+
+function string GetAdminLogoutMessage( PlayerReplicationInfo PRI, optional string adminName )
+{
+	local string sex, s;
 
 	if( PRI.bIsFemale )
-		Sex = "her";
-	else Sex = "his";
+		sex = "her";
+	else sex = "his";
 
-	MaxAdmin = AdminPrivileges.Length;
-	for( CurAdmin = 0; CurAdmin < MaxAdmin; CurAdmin ++ )
+	if( adminName == "" )
 	{
-		if( AdminPrivileges[CurAdmin].Admin == PRI )
-		{
-			if( AdminPrivileges[CurAdmin].bMasterAdmin )
-				return MyMutator.MakeColorCode( AdminTagColor )$MasterAdminTag$MyMutator.MakeColorCode( AdminNameColor )@PRI.PlayerName@"gave up"@Sex@"administrator abilities";
-			else return MyMutator.MakeColorCode( AdminTagColor )$CoAdminTag$MyMutator.MakeColorCode( AdminNameColor )@PRI.PlayerName@"gave up"@Sex@"administrator abilities";
-		}
+		adminName = MasterAdminTag;
 	}
-	return "";
+	s = Repl(Repl(Repl(LoggedOutMessage,
+			"%t", MyMutator.MakeColorCode(AdminTagColor)$adminName),
+			"%o", MyMutator.MakeColorCode(AdminNameColor)$PRI.PlayerName),
+			"%s", sex);
+	return  s;
 }
 
 function bool MayExecute( PlayerController Other, string Cmd )
 {
 	local int i,j,x;
 
-	j = AdminPrivileges.Length;
+	j = ActiveAdmins.Length;
 	For( i=0; i<j; i++ )
 	{
-		if( AdminPrivileges[i].Admin!=None && AdminPrivileges[i].Admin==Other.PlayerReplicationInfo )
+		if( ActiveAdmins[i].Admin!=None && ActiveAdmins[i].Admin==Other.PlayerReplicationInfo )
 		{
-			if( AdminPrivileges[i].bMasterAdmin )
+			if( ActiveAdmins[i].bMasterAdmin )
 				Return True;
 			else if( Cmd~="MasterAdminCmd" )
 			{
-				Other.ClientMessage("You need to be logged in as global administrator to execute this command");
+				Other.ClientMessage("You need to be logged in as master administrator to execute this command");
 				Return False;
 			}
-			else if( AdminPrivileges[i].BlockedCommands[0]=="All" )
+			else if( ActiveAdmins[i].BlockedCommands[0]=="All" )
 			{
 				Other.ClientMessage("You are currently unable to execute any admin commands");
 				Return False;
 			}
-			For( x=0; x<AdminPrivileges[i].NumBlckCmds; x++ )
+			For( x=0; x<ActiveAdmins[i].NumBlckCmds; x++ )
 			{
-				if( AdminPrivileges[i].BlockedCommands[x]~=Cmd )
+				if( ActiveAdmins[i].BlockedCommands[x]~=Cmd )
 				{
 					Other.ClientMessage("You don't have enough privileges to execute command '"$Cmd$"'");
 					Return false;
@@ -444,13 +389,13 @@ function RemoveAdminPriv( PlayerController Other )
 {
 	local int i,j;
 
-	j = AdminPrivileges.Length;
+	j = ActiveAdmins.Length;
 	For( i=0; i<j; i++ )
 	{
-		if( AdminPrivileges[i].Admin==None || AdminPrivileges[i].Admin==Other.PlayerReplicationInfo )
+		if( ActiveAdmins[i].Admin==None || ActiveAdmins[i].Admin==Other.PlayerReplicationInfo )
 		{
-			AdminPrivileges[i] = AdminPrivileges[j-1];
-			AdminPrivileges.Length = j-1;
+			ActiveAdmins[i] = ActiveAdmins[j-1];
+			ActiveAdmins.Length = j-1;
 			j--;
 		}
 	}
@@ -497,9 +442,11 @@ DefaultProperties
 	AdminClass=Class'AccessPlus_Admin'
 
 	// Admin related
-	MasterAdminTag="Global-Admin"
-	CoAdminTag="Co-Admin"
+	MasterAdminTag="Admin"
 
-	AdminTagColor=(R=200,G=200,B=0,A=255)
+	AdminTagColor=(R=255,G=0,B=0,A=255)
 	AdminNameColor=(R=255,G=255,B=255,A=255)
+
+	LoggedInMessage="%t %o logged in as administrator."
+	LoggedOutMessage="%t %o gave up %s administrator abilities."
 }
