@@ -1,9 +1,13 @@
-UT2004-AccessPlus
-=================
+# AccessPlus for Unreal Tournament 2004
 
 AccessPlus is a UT2004 administration mutator. It is based on AdminPlus, adding dozen more admin commands to manage your server.
 
-Building AccessPlus
-=================
-In order to build AccessPlus you will have to download the source code (https://github.com/EliotVU/UT2004-AccessPlus/archive/master.zip) and save it in your UT2004's main folder, for example in: "C:\UT2004\".
-Once done (it is recommended that you rename UT2004-AccessPlus-master to AccessPlus), you are safe to execute the Make.bat file, the engine will compile the project and if everything was setup right it should compile without any errors.
+## Credits
+
+* [Marco](https://github.com/Marco888) a.k.a **.:..:** for developing the original version as a derivative of AdminPlus
+* Rythmix@gmail.com for [AdminPlus](http://planetunreal.gamespy.com/View1dde.html?view=UT2004Files.Detail&id=705)
+
+## Derivative works
+
+* Unreal Tournament 2004 [TURAccessPlus-ng](https://github.com/0xC0ncord/TURAccessPlus-ng)
+* Killing Floor [AccessPlus-2.0](https://github.com/weebskin/AccessPlus-2.0)
