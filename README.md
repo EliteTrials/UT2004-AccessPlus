@@ -5,6 +5,7 @@ AccessPlus is a UT2004 administration mutator. It is based on AdminPlus, adding 
 ## Credits
 
 * [Marco](https://github.com/Marco888) a.k.a **.:..:** for developing the original version as a derivative of AdminPlus
+  * Killing Floor 2 [AccessPlus / Admin access plus manager](https://forums.tripwireinteractive.com/index.php?threads/utility-admin-access-plus-manager.118740/)
 * Rythmix@gmail.com for [AdminPlus](http://planetunreal.gamespy.com/View1dde.html?view=UT2004Files.Detail&id=705)
 
 ## Derivative works
